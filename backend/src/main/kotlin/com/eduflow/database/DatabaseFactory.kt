@@ -7,14 +7,14 @@ import com.eduflow.model.*
 
 object DatabaseFactory {
     fun init() {
-        val host     = System.getenv("MYSQLHOST")     ?: "localhost"
+        val host     = System.getenv("MYSQLHOST")     ?: "mysql.railway.internal"
         val port     = System.getenv("MYSQLPORT")     ?: "3306"
-        val database = System.getenv("MYSQLDATABASE") ?: "eduflow"
+        val database = System.getenv("MYSQLDATABASE") ?: "railway"
         val user     = System.getenv("MYSQLUSER")     ?: "root"
-        val password = System.getenv("MYSQLPASSWORD") ?: ""
+        val password = System.getenv("MYSQLPASSWORD") ?: "qkEQHAIbXvEaICkzBdxKChtiDQFkSniM"
 
         Database.connect(
-            url      = "jdbc:mysql://$host:$port/$database?useSSL=false",
+            url      ="mysql://root:qkEQHAIbXvEaICkzBdxKChtiDQFkSniM@thomas.proxy.rlwy.net:12461/railway",
             driver   = "com.mysql.cj.jdbc.Driver",
             user     = user,
             password = password
