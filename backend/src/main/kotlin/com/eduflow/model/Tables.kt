@@ -1,0 +1,52 @@
+package com.eduflow.model
+
+import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.timestamp
+
+object Usuarios : IntIdTable("usuarios") {
+    val matricula = varchar("matricula", 20).uniqueIndex()
+    val correo = varchar("correo", 100).uniqueIndex()
+    val password = varchar("password", 255)
+    val nombre = varchar("nombre", 100)
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object Materias : IntIdTable("materias") {
+    val usuarioId = integer("usuario_id").references(Usuarios.id)
+    val nombre = varchar("nombre", 100)
+    val dificultad = integer("dificultad")
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object Examenes : IntIdTable("examenes") {
+    val materiaId = integer("materia_id").references(Materias.id)
+    val nombre = varchar("nombre", 50)
+    val fecha = date("fecha")
+}
+
+object Tarjetas : IntIdTable("tarjetas") {
+    val materiaId = integer("materia_id").references(Materias.id)
+    val examenId = integer("examen_id").references(Examenes.id).nullable()
+    val pregunta = text("pregunta")
+    val respuesta = text("respuesta")
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object Podcasts : IntIdTable("podcasts") {
+    val materiaId = integer("materia_id").references(Materias.id)
+    val examenId = integer("examen_id").references(Examenes.id).nullable()
+    val titulo = varchar("titulo", 200)
+    val audioUrl = text("audio_url").nullable()
+    val guion = text("guion").nullable()
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object RedApoyo : IntIdTable("red_apoyo") {
+    val usuarioId = integer("usuario_id").references(Usuarios.id)
+    val tipo = varchar("tipo", 20)
+    val materia = varchar("materia", 100)
+    val mensaje = text("mensaje")
+    val activo = bool("activo").clientDefault { true }
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
