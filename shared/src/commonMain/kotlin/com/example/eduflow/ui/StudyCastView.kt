@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 enum class TabStudyCast { CONSEJOS, TARJETAS, PODCAST }
 
 @Composable
-fun StudyCastView(onVolver: () -> Unit) {
+fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.CONSEJOS) {
     val scope    = rememberCoroutineScope()
     val client   = remember { HttpClient() }
     val token    = SesionStorage.obtenerToken() ?: ""
@@ -33,7 +33,7 @@ fun StudyCastView(onVolver: () -> Unit) {
     var materiaSeleccionada by remember { mutableStateOf<MateriaUI?>(null) }
     var consejo  by remember { mutableStateOf("") }
     var cargando by remember { mutableStateOf(false) }
-    var tabActual by remember { mutableStateOf(TabStudyCast.CONSEJOS) }
+    var tabActual by remember { mutableStateOf(tabInicial) }
 
     LaunchedEffect(Unit) {
         try {
@@ -353,7 +353,8 @@ fun StudyCastView(onVolver: () -> Unit) {
                 BottomNavItem(label = "Dashboard", selected = false,
                     symbol = "⊞", onClick = onVolver)
                 BottomNavItem(label = "StudyCast", selected = true, symbol = "▶")
-                BottomNavItem(label = "Audio", selected = false, symbol = "♪")
+                BottomNavItem(label = "Audio", selected = tabActual == TabStudyCast.PODCAST,
+                    symbol = "♪", onClick = { tabActual = TabStudyCast.PODCAST })
                 BottomNavItem(label = "Peers", selected = false, symbol = "⊙")
             }
         }

@@ -19,10 +19,10 @@ fun Routing.materiaRoutes() {
         }
         val lista = transaction {
             Materias.selectAll().where { Materias.usuarioId eq userId }
-                .map { mapOf(
-                    "id"         to it[Materias.id].value,
-                    "nombre"     to it[Materias.nombre],
-                    "dificultad" to it[Materias.dificultad]
+                .map { MateriaResponse(
+                    id         = it[Materias.id].value,
+                    nombre     = it[Materias.nombre],
+                    dificultad = it[Materias.dificultad]
                 )}
         }
         call.respond(lista)

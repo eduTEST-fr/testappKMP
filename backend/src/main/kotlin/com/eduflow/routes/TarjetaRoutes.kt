@@ -32,7 +32,7 @@ fun Routing.tarjetaRoutes() {
         }
 
         // Parsear el JSON de tarjetas y guardar en MySQL
-        val tarjetasGuardadas = mutableListOf<Map<String, Any>>()
+        val tarjetasGuardadas = mutableListOf<TarjetaResponse>()
         val regexPar = Regex(""""pregunta":"([^"]+)","respuesta":"([^"]+)"""")
         regexPar.findAll(tarjetasJson).forEach { match ->
             val pregunta  = match.groupValues[1]
@@ -45,13 +45,11 @@ fun Routing.tarjetaRoutes() {
                     it[Tarjetas.respuesta] = respuesta
                 }.value
             }
-            tarjetasGuardadas.add(mapOf("id" to id,
-                "pregunta" to pregunta, "respuesta" to respuesta))
+            tarjetasGuardadas.add(TarjetaResponse(id, pregunta, respuesta))
         }
 
         call.respond(HttpStatusCode.Created,
-            mapOf("tarjetas" to tarjetasGuardadas,
-                  "total" to tarjetasGuardadas.size))
+            TarjetasGeneradasResponse(tarjetasGuardadas, tarjetasGuardadas.size))
     }
 
     // GET /tarjetas/{materiaId} - lista tarjetas activas de una materia
@@ -62,10 +60,10 @@ fun Routing.tarjetaRoutes() {
         }
         val lista = transaction {
             Tarjetas.selectAll().where { Tarjetas.materiaId eq materiaId }
-                .map { mapOf(
-                    "id"        to it[Tarjetas.id].value,
-                    "pregunta"  to it[Tarjetas.pregunta],
-                    "respuesta" to it[Tarjetas.respuesta]
+                .map { TarjetaResponse(
+                    id        = it[Tarjetas.id].value,
+                    pregunta  = it[Tarjetas.pregunta],
+                    respuesta = it[Tarjetas.respuesta]
                 )}
         }
         call.respond(lista)

@@ -39,11 +39,11 @@ fun Routing.podcastRoutes() {
             }.value
         }
 
-        call.respond(HttpStatusCode.Created, mapOf(
-            "id"          to id,
-            "titulo"      to titulo,
-            "guion"       to guion,
-            "audioBase64" to audioBase64
+        call.respond(HttpStatusCode.Created, PodcastResponse(
+            id          = id,
+            titulo      = titulo,
+            guion       = guion,
+            audioBase64 = audioBase64
         ))
     }
 
@@ -55,11 +55,11 @@ fun Routing.podcastRoutes() {
         }
         val lista = transaction {
             Podcasts.selectAll().where { Podcasts.materiaId eq materiaId }
-                .map { mapOf(
-                    "id"          to it[Podcasts.id].value,
-                    "titulo"      to it[Podcasts.titulo],
-                    "guion"       to (it[Podcasts.guion] ?: ""),
-                    "audioBase64" to (it[Podcasts.audioUrl] ?: "")
+                .map { PodcastResponse(
+                    id          = it[Podcasts.id].value,
+                    titulo      = it[Podcasts.titulo],
+                    guion       = it[Podcasts.guion] ?: "",
+                    audioBase64 = it[Podcasts.audioUrl] ?: ""
                 )}
         }
         call.respond(lista)

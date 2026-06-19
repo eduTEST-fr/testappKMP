@@ -25,7 +25,7 @@ import kotlinx.datetime.*
 data class MateriaUI(val id: Int, val nombre: String, val dificultad: Int)
 
 @Composable
-fun DashboardView(onVerStudyCast: () -> Unit, onCerrarSesion: () -> Unit) {
+fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> Unit) {
     var mostrarFormulario by remember { mutableStateOf(false) }
     var materias by remember { mutableStateOf<List<MateriaUI>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
@@ -274,7 +274,7 @@ fun DashboardView(onVerStudyCast: () -> Unit, onCerrarSesion: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .clickable { onVerStudyCast() },
+                    .clickable { onVerStudyCast(TabStudyCast.CONSEJOS) },
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = VerdePrimario),
                 elevation = CardDefaults.cardElevation(6.dp)
@@ -363,9 +363,9 @@ fun DashboardView(onVerStudyCast: () -> Unit, onCerrarSesion: () -> Unit) {
             ) {
                 BottomNavItem(label = "Dashboard", selected = true, symbol = "⊞")
                 BottomNavItem(label = "StudyCast", selected = false, symbol = "▶",
-                    onClick = onVerStudyCast)
+                    onClick = { onVerStudyCast(TabStudyCast.CONSEJOS) })
                 BottomNavItem(label = "Audio", selected = false, symbol = "♪",
-                    onClick = { mostrarProximamente = true })
+                    onClick = { onVerStudyCast(TabStudyCast.PODCAST) })
                 BottomNavItem(label = "Peers", selected = false, symbol = "⊙",
                     onClick = { mostrarProximamente = true })
             }
