@@ -14,7 +14,7 @@ object DatabaseFactory {
         val password = System.getenv("MYSQLPASSWORD") ?: "qkEQHAIbXvEaICkzBdxKChtiDQFkSniM"
 
         Database.connect(
-            url      ="mysql://root:qkEQHAIbXvEaICkzBdxKChtiDQFkSniM@thomas.proxy.rlwy.net:12461/railway",
+            url      ="jdbc:mysql://root:qkEQHAIbXvEaICkzBdxKChtiDQFkSniM@thomas.proxy.rlwy.net:12461/railway",
             driver   = "com.mysql.cj.jdbc.Driver",
             user     = user,
             password = password
