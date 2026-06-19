@@ -21,7 +21,7 @@ import java.io.File
 import java.util.Base64
 
 @Composable
-fun AudioPlayerView(materia: MateriaUI?, token: String) {
+actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
     val scope   = rememberCoroutineScope()
     val client  = remember { HttpClient() }
     val context = LocalContext.current

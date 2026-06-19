@@ -8,6 +8,7 @@ import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.LocalDate
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
 fun Routing.examenRoutes() {
     // POST /materias/{id}/examenes - agrega examen a una materia
@@ -34,7 +35,7 @@ fun Routing.examenRoutes() {
             return@get
         }
         val lista = transaction {
-            Examenes.select { Examenes.materiaId eq materiaId }
+            Examenes.selectAll().where { Examenes.materiaId eq materiaId }
                 .map { mapOf(
                     "id"     to it[Examenes.id].value,
                     "nombre" to it[Examenes.nombre],

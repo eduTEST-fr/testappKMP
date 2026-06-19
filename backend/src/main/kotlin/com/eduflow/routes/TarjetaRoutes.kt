@@ -9,6 +9,8 @@ import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.*
 
 fun Routing.tarjetaRoutes() {
     // POST /tarjetas/generar
@@ -59,7 +61,7 @@ fun Routing.tarjetaRoutes() {
             return@get
         }
         val lista = transaction {
-            Tarjetas.select { Tarjetas.materiaId eq materiaId }
+            Tarjetas.selectAll().where { Tarjetas.materiaId eq materiaId }
                 .map { mapOf(
                     "id"        to it[Tarjetas.id].value,
                     "pregunta"  to it[Tarjetas.pregunta],

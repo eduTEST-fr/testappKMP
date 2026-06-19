@@ -8,6 +8,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
 fun Routing.authRoutes() {
     // POST /auth/register
@@ -23,7 +24,9 @@ fun Routing.authRoutes() {
 
         // Verificar que el correo no exista ya
         val existe = transaction {
-            Usuarios.select { Usuarios.correo eq req.correo }.count() > 0
+            Usuarios.selectAll()
+                .where { Usuarios.correo eq req.correo }
+                .count() > 0
         }
         if (existe) {
             call.respond(HttpStatusCode.Conflict,
@@ -49,7 +52,7 @@ fun Routing.authRoutes() {
     post("/auth/login") {
         val req = call.receive<LoginRequest>()
         val usuario = transaction {
-            Usuarios.select { Usuarios.correo eq req.correo }.singleOrNull()
+            Usuarios.selectAll().where { Usuarios.correo eq req.correo }.singleOrNull()
         }
 
         if (usuario == null || !AuthService.verificarPassword(req.password, usuario[Usuarios.password])) {

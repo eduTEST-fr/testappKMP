@@ -10,6 +10,8 @@ import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.Base64
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.*
 
 fun Routing.podcastRoutes() {
     // POST /podcasts/generar
@@ -52,7 +54,7 @@ fun Routing.podcastRoutes() {
             return@get
         }
         val lista = transaction {
-            Podcasts.select { Podcasts.materiaId eq materiaId }
+            Podcasts.selectAll().where { Podcasts.materiaId eq materiaId }
                 .map { mapOf(
                     "id"          to it[Podcasts.id].value,
                     "titulo"      to it[Podcasts.titulo],

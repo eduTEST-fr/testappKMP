@@ -8,6 +8,7 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.serialization.kotlinx.json.*
 import com.eduflow.database.DatabaseFactory
 import com.eduflow.routes.*
+import io.ktor.server.routing.*
 
 fun main() {
     embeddedServer(Netty, port = System.getenv("PORT")?.toInt() ?: 8080) {

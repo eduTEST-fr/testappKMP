@@ -9,6 +9,8 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.*
 
 @Serializable
 data class RedApoyoRequest(
@@ -25,7 +27,7 @@ fun Routing.redApoyoRoutes() {
             return@get
         }
         val lista = transaction {
-            RedApoyo.select { RedApoyo.activo eq true }
+            RedApoyo.selectAll().where { RedApoyo.activo eq true }
                 .map { mapOf(
                     "id"      to it[RedApoyo.id].value,
                     "tipo"    to it[RedApoyo.tipo],

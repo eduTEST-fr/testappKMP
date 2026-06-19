@@ -8,6 +8,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
 fun Routing.materiaRoutes() {
     // GET /materias - lista las materias del usuario autenticado
@@ -17,7 +18,7 @@ fun Routing.materiaRoutes() {
             return@get
         }
         val lista = transaction {
-            Materias.select { Materias.usuarioId eq userId }
+            Materias.selectAll().where { Materias.usuarioId eq userId }
                 .map { mapOf(
                     "id"         to it[Materias.id].value,
                     "nombre"     to it[Materias.nombre],
