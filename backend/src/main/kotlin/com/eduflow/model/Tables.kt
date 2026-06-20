@@ -37,7 +37,7 @@ object Podcasts : IntIdTable("podcasts") {
     val materiaId = integer("materia_id").references(Materias.id)
     val examenId = integer("examen_id").references(Examenes.id).nullable()
     val titulo = varchar("titulo", 200)
-    val audioBytes = blob("audio_bytes").nullable() // WAV crudo (no base64/texto)
+    val audioBytes = blob("audio_bytes").nullable() // MP3 en español (Google Translate TTS)
     val guion = text("guion").nullable()
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }

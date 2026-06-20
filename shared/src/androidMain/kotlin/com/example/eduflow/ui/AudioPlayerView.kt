@@ -57,7 +57,7 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
             val bytes = client.get("${ApiConfig.BASE_URL}${dto.audioUrl}") {
                 header("Authorization", "Bearer $token")
             }.readBytes()
-            val file = File(context.cacheDir, "podcast_${materia?.id}.wav")
+            val file = File(context.cacheDir, "podcast_${materia?.id}.mp3")
             file.writeBytes(bytes)
             mediaPlayer?.release()
             mediaPlayer = android.media.MediaPlayer().apply {

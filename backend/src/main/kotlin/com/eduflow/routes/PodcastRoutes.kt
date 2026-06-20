@@ -29,13 +29,15 @@ fun Routing.podcastRoutes() {
             return@post
         }
 
-        // Paso 2: convertir guion a audio WAV con Orpheus TTS
-        val audioBytes = GroqService.generarAudio(guion)
+        // Paso 2: convertir guion a audio en ESPAÑOL.
+        // Groq/Orpheus solo soporta voz en ingles y arabe -- por eso esta
+        // parte usa TtsService (Google Translate TTS), que si entiende
+        // español de forma nativa y no requiere API key.
+        val audioBytes = TtsService.generarAudioEnEspanol(guion)
 
         if (audioBytes == null) {
             call.respond(HttpStatusCode.ServiceUnavailable, mapOf(
-                "error" to "No se pudo generar el audio. Verifica que el modelo de " +
-                    "voz esté habilitado en tu cuenta de Groq (console.groq.com)."
+                "error" to "No se pudo generar el audio en este momento. Intenta de nuevo en unos segundos."
             ))
             return@post
         }
@@ -96,6 +98,6 @@ fun Routing.podcastRoutes() {
             call.respond(HttpStatusCode.NotFound, "Audio no encontrado")
             return@get
         }
-        call.respondBytes(bytes, ContentType.parse("audio/wav"))
+        call.respondBytes(bytes, ContentType.parse("audio/mpeg"))
     }
 }
