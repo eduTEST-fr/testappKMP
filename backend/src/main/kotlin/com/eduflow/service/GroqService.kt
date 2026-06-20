@@ -109,7 +109,11 @@ object GroqService {
     }
 
     // --- AUDIO CON ORPHEUS TTS ---
-    suspend fun generarAudio(texto: String): ByteArray {
+    // Devuelve null si Groq no entrega audio real (por ejemplo si el modelo
+    // requiere aceptar terminos, limite de uso, o cualquier otro error).
+    // Antes esto devolvia los bytes del error JSON tal cual y se guardaban
+    // en MySQL como si fueran un WAV valido, rompiendo la reproduccion.
+    suspend fun generarAudio(texto: String): ByteArray? {
         // Orpheus tiene limite de 200 chars. Si el guion es mas largo,
         // se toma solo los primeros 190 chars para no exceder el limite.
         val textoLimitado = if (texto.length > 190) texto.take(190) else texto
@@ -126,6 +130,16 @@ object GroqService {
             contentType(ContentType.Application.Json)
             setBody(bodyJson.toString())
         }
+
+        if (response.status != HttpStatusCode.OK) {
+            // Groq devolvio un error (terminos no aceptados, rate limit, etc.)
+            // en vez de audio. Se registra en consola para depuracion pero
+            // NO se guarda como si fuera un WAV real.
+            val errorBody = response.bodyAsText()
+            println("GroqService.generarAudio - error HTTP ${response.status}: $errorBody")
+            return null
+        }
+
         return response.readBytes()
     }
 

@@ -31,6 +31,18 @@ fun Routing.podcastRoutes() {
         // Paso 2: convertir guion a audio WAV con Orpheus TTS
         val audioBytes = GroqService.generarAudio(guion)
 
+        if (audioBytes == null) {
+            // Groq no entrego audio real (por ejemplo: terminos del modelo
+            // no aceptados en console.groq.com). No se guarda nada invalido
+            // en MySQL; se avisa con un mensaje claro para que se revise
+            // la cuenta de Groq en vez de fallar en silencio en la app.
+            call.respond(HttpStatusCode.ServiceUnavailable, mapOf(
+                "error" to "No se pudo generar el audio. Verifica que el modelo de " +
+                    "voz esté habilitado en tu cuenta de Groq (console.groq.com)."
+            ))
+            return@post
+        }
+
         // Paso 3: guardar en MySQL como base64
         val audioBase64 = Base64.getEncoder().encodeToString(audioBytes)
         val titulo = "Podcast: ${req.tema} - ${req.materia}"

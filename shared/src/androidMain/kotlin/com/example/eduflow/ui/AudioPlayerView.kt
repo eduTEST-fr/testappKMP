@@ -53,15 +53,23 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
         titulo = dto.titulo
         guion  = dto.guion
         if (dto.audioBase64.isNotEmpty()) {
-            val bytes = Base64.getDecoder().decode(dto.audioBase64)
-            val file  = File(context.cacheDir, "podcast_${materia?.id}.wav")
-            file.writeBytes(bytes)
-            mediaPlayer?.release()
-            mediaPlayer = android.media.MediaPlayer().apply {
-                setDataSource(file.absolutePath)
-                prepare()
+            try {
+                val bytes = Base64.getDecoder().decode(dto.audioBase64)
+                val file  = File(context.cacheDir, "podcast_${materia?.id}.wav")
+                file.writeBytes(bytes)
+                mediaPlayer?.release()
+                mediaPlayer = android.media.MediaPlayer().apply {
+                    setDataSource(file.absolutePath)
+                    prepare()
+                }
+                hayAudio = true
+            } catch (e: Exception) {
+                // El audio guardado no es un WAV valido (por ejemplo si quedo
+                // un registro viejo de antes de este fix). Se muestra el guion
+                // igual, pero sin reproductor, en vez de crashear la app.
+                errorMsg = "El audio guardado no es válido. Genera el podcast de nuevo."
+                hayAudio = false
             }
-            hayAudio = true
         }
     }
 
@@ -165,11 +173,21 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
                                     }
                                     val resp = respuesta.bodyAsText()
 
-                                    if (respuesta.status == HttpStatusCode.UnprocessableEntity) {
-                                        errorMsg = "La IA no pudo generar el podcast. Intenta de nuevo."
-                                    } else {
-                                        val dto = jsonParser.decodeFromString<PodcastApiDto>(resp)
-                                        cargarDesdeDto(dto)
+                                    when (respuesta.status) {
+                                        HttpStatusCode.UnprocessableEntity ->
+                                            errorMsg = "La IA no pudo generar el podcast. Intenta de nuevo."
+                                        HttpStatusCode.ServiceUnavailable -> {
+                                            // El backend ya distingue este caso: el guion se
+                                            // genero bien pero Groq no pudo crear el audio
+                                            // (ej. modelo de voz sin terminos aceptados).
+                                            val err = Regex(""""error":"([^"]+)"""")
+                                                .find(resp)?.groupValues?.get(1)
+                                            errorMsg = err ?: "No se pudo generar el audio."
+                                        }
+                                        else -> {
+                                            val dto = jsonParser.decodeFromString<PodcastApiDto>(resp)
+                                            cargarDesdeDto(dto)
+                                        }
                                     }
                                 } catch (e: Exception) { errorMsg = "Error al generar" }
                                 generando = false

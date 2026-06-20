@@ -6,5 +6,5 @@ object ApiConfig {
     // La encuentras en Railway → tu servicio backend → Settings → Domains.
     // Debe verse así: https://eduflow-backend-production-xxxx.up.railway.app
     // (SIN slash "/" al final)
-    const val BASE_URL = "https://eduflow-backend.up.railway.app"
+    const val BASE_URL = "https://testappkmp-production.up.railway.app"
 }
