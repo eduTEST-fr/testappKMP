@@ -139,10 +139,12 @@ object GroqService {
             // autumn, diana, hannah, austin, daniel, troy.
             // "hannah" tiene un tono femenino calido, adecuado para un podcast.
             put("voice", "hannah")
-            // mp3 en vez de wav: el mismo audio pesa ~10 veces menos
-            // (wav sin comprimir vs mp3 comprimido), lo que evita guardar
-            // archivos pesados en MySQL y acelera la carga en el celular.
-            put("response_format", "mp3")
+            // Groq confirma con un 400 que Orpheus SOLO acepta "wav"
+            // (mp3/flac/ogg no estan soportados para este modelo en particular).
+            // El problema real no era el formato: era que el header WAV que
+            // devuelve Orpheus trae un tamaño "placeholder" (0xFFFFFFFF) en
+            // vez del tamaño real, y eso es lo que se repara mas abajo.
+            put("response_format", "wav")
         }
 
         val response = client.post("https://api.groq.com/openai/v1/audio/speech") {
@@ -154,24 +156,53 @@ object GroqService {
         if (response.status != HttpStatusCode.OK) {
             // Groq devolvio un error (terminos no aceptados, rate limit, etc.)
             // en vez de audio. Se registra en consola para depuracion pero
-            // NO se guarda como si fuera un MP3 real.
+            // NO se guarda como si fuera un WAV real.
             val errorBody = response.bodyAsText()
             println("GroqService.generarAudio - error HTTP ${response.status}: $errorBody")
             return null
         }
 
-        val bytes = response.readBytes()
+        val rawBytes = response.readBytes()
 
-        // Un MP3 real de un par de segundos pesa al menos unos cientos de
-        // bytes. Si llega algo absurdamente chico, es señal de que el
-        // cuerpo no es audio real (por ejemplo un JSON de error con
-        // status 200, caso raro pero posible).
-        if (bytes.size < 200) {
+        // Orpheus devuelve el header WAV con el tamaño RIFF/data como
+        // placeholder (0xFFFFFFFF), tipico de un stream que no cierra el
+        // tamaño real al final. Reproductores como MediaPlayer de Android
+        // rechazan ese header como invalido aunque el audio de adentro este
+        // bien. Aqui se reescribe el header con el tamaño real de bytes.
+        val bytes = repararHeaderWav(rawBytes)
+
+        // Un WAV real de un par de segundos de voz pesa varios KB. Si lo
+        // que queda despues del header de 44 bytes es minimo, es señal de
+        // que no hubo audio real (por ejemplo un JSON de error disfrazado
+        // con status 200, caso raro pero posible).
+        if (bytes.size < 44 + 200) {
             println("GroqService.generarAudio - respuesta demasiado pequeña (${bytes.size} bytes), se descarta")
             return null
         }
 
         return bytes
+    }
+
+    // Reescribe los campos de tamaño del header WAV (44 bytes estandar)
+    // usando la longitud real del arreglo, sin tocar el audio en si.
+    // Esto es lo que arregla el problema de fondo: Orpheus manda el header
+    // con un tamaño "placeholder" (0xFFFFFFFF) que MediaPlayer rechaza.
+    private fun repararHeaderWav(bytes: ByteArray): ByteArray {
+        if (bytes.size < 44) return bytes
+        val out = bytes.copyOf()
+        val dataSize = out.size - 44
+        val riffSize = out.size - 8
+
+        fun escribirLE(offset: Int, valor: Int) {
+            out[offset]     = (valor and 0xFF).toByte()
+            out[offset + 1] = ((valor shr 8) and 0xFF).toByte()
+            out[offset + 2] = ((valor shr 16) and 0xFF).toByte()
+            out[offset + 3] = ((valor shr 24) and 0xFF).toByte()
+        }
+
+        escribirLE(4, riffSize)   // tamaño total del RIFF (archivo - 8)
+        escribirLE(40, dataSize)  // tamaño del chunk "data" (el audio real)
+        return out
     }
 
     // --- FUNCION AUXILIAR: llamada al chat de Groq ---

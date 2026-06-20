@@ -96,6 +96,6 @@ fun Routing.podcastRoutes() {
             call.respond(HttpStatusCode.NotFound, "Audio no encontrado")
             return@get
         }
-        call.respondBytes(bytes, ContentType.parse("audio/mpeg"))
+        call.respondBytes(bytes, ContentType.parse("audio/wav"))
     }
 }
