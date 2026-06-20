@@ -2,6 +2,9 @@
 package com.example.eduflow.config
 
 object ApiConfig {
-    // Cambiar por la URL real de Railway al hacer el deploy
-    const val BASE_URL = "https://testappkmp-production.up.railway.app"
+    // ⚠️ IMPORTANTE: Reemplaza esta URL por la URL real de tu backend en Railway.
+    // La encuentras en Railway → tu servicio backend → Settings → Domains.
+    // Debe verse así: https://eduflow-backend-production-xxxx.up.railway.app
+    // (SIN slash "/" al final)
+    const val BASE_URL = "https://eduflow-backend.up.railway.app"
 }

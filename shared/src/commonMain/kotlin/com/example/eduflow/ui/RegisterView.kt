@@ -114,7 +114,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
                                     cargando = true
                                     scope.launch {
                                         try {
-                                            val resp = client.post(
+                                            val respuesta = client.post(
                                                 "${ApiConfig.BASE_URL}/auth/register"
                                             ) {
                                                 contentType(ContentType.Application.Json)
@@ -122,7 +122,18 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
                                                     """"correo":"$correo",""" +
                                                     """"password":"$password",""" +
                                                     """"nombre":"$nombre"}""")
-                                            }.bodyAsText()
+                                            }
+
+                                            val resp = respuesta.bodyAsText()
+
+                                            // Si la URL del backend está mal configurada,
+                                            // el servidor responde 404 y lo detectamos aquí
+                                            // en vez de mostrar un error genérico confuso.
+                                            if (respuesta.status == HttpStatusCode.NotFound) {
+                                                errorMsg = "No se encontró el servidor (revisa ApiConfig.BASE_URL)"
+                                                cargando = false
+                                                return@launch
+                                            }
 
                                             // Extrae token y nombre del JSON
                                             val token = Regex(""""token":"([^"]+)"""")

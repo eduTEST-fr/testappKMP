@@ -7,7 +7,6 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.insertAndGetId
-import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.Base64
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -21,6 +20,13 @@ fun Routing.podcastRoutes() {
 
         // Paso 1: generar guion con llama-3.1-8b-instant
         val guion = GroqService.generarGuionPodcast(req.materia, req.tema)
+
+        if (guion.isBlank() || guion == "Sin respuesta") {
+            call.respond(HttpStatusCode.UnprocessableEntity, mapOf(
+                "error" to "La IA no devolvió un guión válido. Intenta de nuevo."
+            ))
+            return@post
+        }
 
         // Paso 2: convertir guion a audio WAV con Orpheus TTS
         val audioBytes = GroqService.generarAudio(guion)
@@ -39,12 +45,11 @@ fun Routing.podcastRoutes() {
             }.value
         }
 
-        call.respond(HttpStatusCode.Created, PodcastResponse(
-            id          = id,
-            titulo      = titulo,
-            guion       = guion,
-            audioBase64 = audioBase64
-        ))
+        // Antes esto era un mapOf que el frontend leia con regex; al ser
+        // un guion con saltos de linea y comillas, el regex casi siempre
+        // fallaba. Con @Serializable, kotlinx.serialization escapa el
+        // JSON correctamente y el cliente lo lee sin perder texto.
+        call.respond(HttpStatusCode.Created, PodcastDto(id, titulo, guion, audioBase64))
     }
 
     // GET /podcasts/{materiaId}
@@ -55,11 +60,11 @@ fun Routing.podcastRoutes() {
         }
         val lista = transaction {
             Podcasts.selectAll().where { Podcasts.materiaId eq materiaId }
-                .map { PodcastResponse(
-                    id          = it[Podcasts.id].value,
-                    titulo      = it[Podcasts.titulo],
-                    guion       = it[Podcasts.guion] ?: "",
-                    audioBase64 = it[Podcasts.audioUrl] ?: ""
+                .map { PodcastDto(
+                    it[Podcasts.id].value,
+                    it[Podcasts.titulo],
+                    it[Podcasts.guion] ?: "",
+                    it[Podcasts.audioUrl] ?: ""
                 )}
         }
         call.respond(lista)

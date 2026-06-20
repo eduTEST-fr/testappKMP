@@ -17,8 +17,20 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 data class Tarjeta(val id: Int, val pregunta: String, val respuesta: String)
+
+// DTOs que reflejan exactamente lo que devuelve el backend (TarjetaDto y
+// GenerarTarjetasResponse). Antes esto se leia con regex y se rompia si el
+// JSON traia saltos de linea o comillas internas; ahora se parsea de verdad.
+@Serializable
+private data class TarjetaApiDto(val id: Int, val pregunta: String, val respuesta: String)
+@Serializable
+private data class GenerarTarjetasApiResponse(val tarjetas: List<TarjetaApiDto>, val total: Int)
+
+private val jsonParser = Json { ignoreUnknownKeys = true }
 
 @Composable
 fun TarjetasView(materia: MateriaUI?, token: String) {
@@ -40,13 +52,8 @@ fun TarjetasView(materia: MateriaUI?, token: String) {
             ) {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            val rPre = Regex(""""pregunta":"([^"]+)"""")
-            val rRes = Regex(""""respuesta":"([^"]+)"""")
-            val rId  = Regex(""""id":(\d+)""")
-            val ids  = rId.findAll(resp).map { it.groupValues[1].toInt() }.toList()
-            val pres = rPre.findAll(resp).map { it.groupValues[1] }.toList()
-            val ress = rRes.findAll(resp).map { it.groupValues[1] }.toList()
-            tarjetas = ids.indices.map { Tarjeta(ids[it], pres[it], ress[it]) }
+            val lista = jsonParser.decodeFromString<List<TarjetaApiDto>>(resp)
+            tarjetas = lista.map { Tarjeta(it.id, it.pregunta, it.respuesta) }
         } catch (e: Exception) {}
         cargando = false
     }
@@ -95,19 +102,22 @@ fun TarjetasView(materia: MateriaUI?, token: String) {
                             generando = true; errorMsg = ""
                             scope.launch {
                                 try {
-                                    val resp = client.post(
+                                    val respuesta = client.post(
                                         "${ApiConfig.BASE_URL}/tarjetas/generar"
                                     ) {
                                         header("Authorization", "Bearer $token")
                                         contentType(ContentType.Application.Json)
-                                        setBody("""{"materiaId":${materia.id},"examenId":0,
-                                            "materia":"${materia.nombre}","texto":"$tema"}""")
-                                    }.bodyAsText()
-                                    val rPre = Regex(""""pregunta":"([^"]+)"""")
-                                    val rRes = Regex(""""respuesta":"([^"]+)"""")
-                                    val pres = rPre.findAll(resp).map { it.groupValues[1] }.toList()
-                                    val ress = rRes.findAll(resp).map { it.groupValues[1] }.toList()
-                                    tarjetas = pres.indices.map { Tarjeta(it, pres[it], ress[it]) }
+                                        setBody("""{"materiaId":${materia.id},"examenId":0,""" +
+                                            """"materia":"${materia.nombre}","texto":"$tema"}""")
+                                    }
+                                    val resp = respuesta.bodyAsText()
+
+                                    if (respuesta.status == HttpStatusCode.UnprocessableEntity) {
+                                        errorMsg = "La IA no pudo generar tarjetas. Intenta de nuevo."
+                                    } else {
+                                        val parsed = jsonParser.decodeFromString<GenerarTarjetasApiResponse>(resp)
+                                        tarjetas = parsed.tarjetas.map { Tarjeta(it.id, it.pregunta, it.respuesta) }
+                                    }
                                 } catch (e: Exception) { errorMsg = "Error al generar" }
                                 generando = false
                             }

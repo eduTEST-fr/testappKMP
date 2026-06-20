@@ -22,6 +22,9 @@ data class LoginRequest(
 data class MateriaRequest(val nombre: String, val dificultad: Int)
 
 @Serializable
+data class MateriaDto(val id: Int, val nombre: String, val dificultad: Int)
+
+@Serializable
 data class ExamenRequest(val nombre: String, val fecha: String)
 
 // --- EP7: Tarjetas y podcasts con IA ---
@@ -42,29 +45,17 @@ data class GenerarPodcastRequest(
     val tema: String
 )
 
-// --- Respuestas tipadas ---
-// IMPORTANTE: kotlinx.serialization no puede serializar mapOf(...) cuando mezcla
-// tipos (Int + String se infiere como Map<String, Any>), eso provoca un 500
-// silencioso en el cliente. Por eso todas las respuestas de listas usan DTOs.
+// --- DTOs de respuesta (antes eran mapOf sin tipo) ---
 @Serializable
-data class MateriaResponse(val id: Int, val nombre: String, val dificultad: Int)
+data class TarjetaDto(val id: Int, val pregunta: String, val respuesta: String)
 
 @Serializable
-data class ExamenResponse(val id: Int, val nombre: String, val fecha: String)
+data class GenerarTarjetasResponse(val tarjetas: List<TarjetaDto>, val total: Int)
 
 @Serializable
-data class TarjetaResponse(val id: Int, val pregunta: String, val respuesta: String)
-
-@Serializable
-data class TarjetasGeneradasResponse(val tarjetas: List<TarjetaResponse>, val total: Int)
-
-@Serializable
-data class PodcastResponse(
+data class PodcastDto(
     val id: Int,
     val titulo: String,
     val guion: String,
     val audioBase64: String
 )
-
-@Serializable
-data class RedApoyoResponse(val id: Int, val tipo: String, val materia: String, val mensaje: String)

@@ -33,6 +33,7 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var verPass  by remember { mutableStateOf(false) }
     var error    by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf("Correo o contraseña incorrectos") }
     var cargando by remember { mutableStateOf(false) }
 
     Box(
@@ -169,7 +170,7 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
 
                     AnimatedVisibility(visible = error) {
                         Text(
-                            "Correo o contraseña incorrectos",
+                            errorMsg,
                             color = Color(0xFFB00020),
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 6.dp)
@@ -180,16 +181,32 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
 
                     Button(
                         onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                error = true
+                                errorMsg = "Completa correo y contraseña"
+                                return@Button
+                            }
                             cargando = true
                             error = false
                             scope.launch {
                                 try {
-                                    val resp = client.post(
+                                    val respuesta = client.post(
                                         "${ApiConfig.BASE_URL}/auth/login"
                                     ) {
                                         contentType(ContentType.Application.Json)
                                         setBody("""{"correo":"$email","password":"$password"}""")
-                                    }.bodyAsText()
+                                    }
+
+                                    val resp = respuesta.bodyAsText()
+
+                                    // Si la URL del backend está mal, Railway/el cliente
+                                    // regresan 404 y aquí lo distinguimos claramente.
+                                    if (respuesta.status == HttpStatusCode.NotFound) {
+                                        error = true
+                                        errorMsg = "No se encontró el servidor (revisa ApiConfig.BASE_URL)"
+                                        cargando = false
+                                        return@launch
+                                    }
 
                                     val token = Regex(""""token":"([^"]+)"""")
                                         .find(resp)?.groupValues?.get(1) ?: ""
@@ -200,10 +217,14 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
                                         SesionStorage.guardarToken(token, nom)
                                         onLoginExitoso()
                                     } else {
+                                        val err = Regex(""""error":"([^"]+)"""")
+                                            .find(resp)?.groupValues?.get(1)
                                         error = true
+                                        errorMsg = err ?: "Correo o contraseña incorrectos"
                                     }
                                 } catch (e: Exception) {
                                     error = true
+                                    errorMsg = "Sin conexión al servidor"
                                 }
                                 cargando = false
                             }

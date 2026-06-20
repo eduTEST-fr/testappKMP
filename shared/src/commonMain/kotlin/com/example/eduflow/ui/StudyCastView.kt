@@ -19,11 +19,18 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 enum class TabStudyCast { CONSEJOS, TARJETAS, PODCAST }
 
+@Serializable
+private data class MateriaApiDtoSC(val id: Int, val nombre: String, val dificultad: Int)
+
+private val jsonParserSC = Json { ignoreUnknownKeys = true }
+
 @Composable
-fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.CONSEJOS) {
+fun StudyCastView(onVolver: () -> Unit, onVerPeers: () -> Unit) {
     val scope    = rememberCoroutineScope()
     val client   = remember { HttpClient() }
     val token    = SesionStorage.obtenerToken() ?: ""
@@ -33,19 +40,33 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
     var materiaSeleccionada by remember { mutableStateOf<MateriaUI?>(null) }
     var consejo  by remember { mutableStateOf("") }
     var cargando by remember { mutableStateOf(false) }
-    var tabActual by remember { mutableStateOf(tabInicial) }
+    var tabActual by remember { mutableStateOf(TabStudyCast.CONSEJOS) }
+    // Fechas de examen por materiaId, igual que en el Dashboard, para
+    // bloquear la generacion de contenido el dia del examen.
+    var fechasPorMateria by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
 
     LaunchedEffect(Unit) {
         try {
             val resp = client.get("${ApiConfig.BASE_URL}/materias") {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            val regex = Regex(""""id":(\d+),"nombre":"([^"]+)","dificultad":(\d+)""")
-            materias = regex.findAll(resp).map {
-                MateriaUI(it.groupValues[1].toInt(),
-                          it.groupValues[2],
-                          it.groupValues[3].toInt())
-            }.toList()
+            val listaDto = jsonParserSC.decodeFromString<List<MateriaApiDtoSC>>(resp)
+            val lista = listaDto.map { MateriaUI(it.id, it.nombre, it.dificultad) }
+            materias = lista
+
+            val mapa = mutableMapOf<Int, List<String>>()
+            lista.forEach { m ->
+                try {
+                    val respEx = client.get("${ApiConfig.BASE_URL}/materias/${m.id}/examenes") {
+                        header("Authorization", "Bearer $token")
+                    }.bodyAsText()
+                    val rFecha = Regex(""""fecha":"([^"]+)"""")
+                    mapa[m.id] = rFecha.findAll(respEx).map { it.groupValues[1] }.toList()
+                } catch (e: Exception) {
+                    mapa[m.id] = emptyList()
+                }
+            }
+            fechasPorMateria = mapa
         } catch (e: Exception) {}
         cargandoMaterias = false
     }
@@ -146,6 +167,7 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
 
                     materias.forEach { materia ->
                         val seleccionada = materiaSeleccionada?.id == materia.id
+                        val bloqueada = tieneExamenHoy(fechasPorMateria[materia.id] ?: emptyList())
                         val simbolo = when {
                             materia.nombre.contains("mat", ignoreCase = true) ||
                                     materia.nombre.contains("calc", ignoreCase = true) ||
@@ -160,62 +182,81 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 8.dp)
-                                .clickable {
+                                .clickable(enabled = !bloqueada) {
                                     materiaSeleccionada = materia
                                     consejo = ""
                                 },
                             shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (seleccionada) VerdePrimario
-                                else Color.White
+                                containerColor = when {
+                                    bloqueada    -> Color(0xFFF0F0F0)
+                                    seleccionada -> VerdePrimario
+                                    else         -> Color.White
+                                }
                             ),
                             elevation = CardDefaults.cardElevation(
                                 if (seleccionada) 4.dp else 2.dp
                             )
                         ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            if (seleccionada)
-                                                Color.White.copy(alpha = 0.18f)
-                                            else Color(0xFFDDE8E0)
-                                        ),
-                                    contentAlignment = Alignment.Center
+                            Column {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(simbolo, fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (seleccionada) Color.White
-                                        else VerdePrimario)
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(materia.nombre, fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (seleccionada) Color.White
-                                        else TextoPrimario)
-                                    Text("Dificultad: ${materia.dificultad}/10",
-                                        fontSize = 12.sp,
-                                        color = if (seleccionada)
-                                            Color.White.copy(0.72f)
-                                        else TextoSecundario)
-                                }
-                                if (seleccionada) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = Color.White.copy(alpha = 0.18f)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (seleccionada)
+                                                    Color.White.copy(alpha = 0.18f)
+                                                else Color(0xFFDDE8E0)
+                                            ),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text("LISTO", fontSize = 9.sp,
+                                        Text(simbolo, fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            letterSpacing = 0.5.sp,
-                                            modifier = Modifier.padding(
-                                                horizontal = 8.dp, vertical = 3.dp))
+                                            color = if (seleccionada) Color.White
+                                            else VerdePrimario)
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(materia.nombre, fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (seleccionada) Color.White
+                                            else TextoPrimario)
+                                        Text("Dificultad: ${materia.dificultad}/10",
+                                            fontSize = 12.sp,
+                                            color = if (seleccionada)
+                                                Color.White.copy(0.72f)
+                                            else TextoSecundario)
+                                    }
+                                    if (seleccionada) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color.White.copy(alpha = 0.18f)
+                                        ) {
+                                            Text("LISTO", fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                letterSpacing = 0.5.sp,
+                                                modifier = Modifier.padding(
+                                                    horizontal = 8.dp, vertical = 3.dp))
+                                        }
+                                    }
+                                }
+                                if (bloqueada) {
+                                    Row(modifier = Modifier.padding(start = 14.dp, bottom = 10.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF8B6914)
+                                        ) {
+                                            Text("EXAMEN HOY · BLOQUEADO", fontSize = 9.sp,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(
+                                                    horizontal = 8.dp, vertical = 3.dp))
+                                        }
                                     }
                                 }
                             }
@@ -224,16 +265,17 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Tabs: Consejo, Tarjetas, Podcast
+                    // Etiqueta de seccion: separa visualmente Consejos+Tarjetas (repaso
+                    // rapido en texto) del grupo de Podcast (audio), como se pidio.
+                    Text("Repaso rápido", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = TextoSecundario, letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(bottom = 8.dp))
+
                     Row(modifier = Modifier.fillMaxWidth()) {
-                        TabStudyCast.values().forEach { tab ->
-                            val label = when (tab) {
-                                TabStudyCast.CONSEJOS -> "Consejo"
-                                TabStudyCast.TARJETAS -> "Tarjetas"
-                                TabStudyCast.PODCAST  -> "Podcast"
-                            }
+                        listOf(TabStudyCast.CONSEJOS, TabStudyCast.TARJETAS).forEach { tab ->
+                            val label = if (tab == TabStudyCast.CONSEJOS) "Consejo" else "Tarjetas"
                             Surface(
-                                modifier = Modifier.weight(1f).padding(4.dp)
+                                modifier = Modifier.weight(1f).padding(end = 4.dp)
                                     .clickable { tabActual = tab },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (tabActual == tab) VerdePrimario else Color(0xFFEEEEEE)
@@ -246,8 +288,58 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
                         }
                     }
 
+                    Spacer(Modifier.height(14.dp))
+
+                    Text("Audio", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = TextoSecundario, letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(bottom = 8.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { tabActual = TabStudyCast.PODCAST },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (tabActual == TabStudyCast.PODCAST) VerdePrimario
+                                else Color(0xFFEEEEEE)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("♪  ", fontSize = 13.sp,
+                                color = if (tabActual == TabStudyCast.PODCAST) Color.White
+                                        else TextoSecundario)
+                            Text("Podcast con IA", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (tabActual == TabStudyCast.PODCAST) Color.White
+                                        else TextoSecundario)
+                        }
+                    }
+
                     Spacer(Modifier.height(16.dp))
 
+                    val materiaActualBloqueada = materiaSeleccionada?.let {
+                        tieneExamenHoy(fechasPorMateria[it.id] ?: emptyList())
+                    } ?: false
+
+                    if (materiaActualBloqueada) {
+                        // Si por alguna razon queda seleccionada una materia con
+                        // examen hoy, se bloquea tambien la generacion de contenido.
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Text("Contenido bloqueado", fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold, color = Color(0xFF8B6914))
+                                Text("Hoy es el examen de ${materiaSeleccionada?.nombre}. " +
+                                    "El contenido de IA se bloquea para que repases con lo " +
+                                    "que ya preparaste.",
+                                    fontSize = 13.sp, color = TextoSecundario,
+                                    modifier = Modifier.padding(top = 6.dp), lineHeight = 19.sp)
+                            }
+                        }
+                    } else {
                     when (tabActual) {
                         TabStudyCast.CONSEJOS -> {
                             Button(
@@ -332,6 +424,7 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
                         TabStudyCast.TARJETAS -> TarjetasView(materia = materiaSeleccionada, token = token)
                         TabStudyCast.PODCAST  -> AudioPlayerView(materia = materiaSeleccionada, token = token)
                     }
+                    }
                 }
             }
         }
@@ -353,9 +446,10 @@ fun StudyCastView(onVolver: () -> Unit, tabInicial: TabStudyCast = TabStudyCast.
                 BottomNavItem(label = "Dashboard", selected = false,
                     symbol = "⊞", onClick = onVolver)
                 BottomNavItem(label = "StudyCast", selected = true, symbol = "▶")
-                BottomNavItem(label = "Audio", selected = tabActual == TabStudyCast.PODCAST,
-                    symbol = "♪", onClick = { tabActual = TabStudyCast.PODCAST })
-                BottomNavItem(label = "Peers", selected = false, symbol = "⊙")
+                BottomNavItem(label = "Audio", selected = false, symbol = "♪",
+                    onClick = { tabActual = TabStudyCast.PODCAST })
+                BottomNavItem(label = "Peers", selected = false, symbol = "⊙",
+                    onClick = onVerPeers)
             }
         }
     }

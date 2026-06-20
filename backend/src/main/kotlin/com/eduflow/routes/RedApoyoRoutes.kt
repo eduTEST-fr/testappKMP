@@ -28,11 +28,11 @@ fun Routing.redApoyoRoutes() {
         }
         val lista = transaction {
             RedApoyo.selectAll().where { RedApoyo.activo eq true }
-                .map { RedApoyoResponse(
-                    id      = it[RedApoyo.id].value,
-                    tipo    = it[RedApoyo.tipo],
-                    materia = it[RedApoyo.materia],
-                    mensaje = it[RedApoyo.mensaje]
+                .map { mapOf(
+                    "id"      to it[RedApoyo.id].value,
+                    "tipo"    to it[RedApoyo.tipo],
+                    "materia" to it[RedApoyo.materia],
+                    "mensaje" to it[RedApoyo.mensaje]
                 )}
         }
         call.respond(lista)

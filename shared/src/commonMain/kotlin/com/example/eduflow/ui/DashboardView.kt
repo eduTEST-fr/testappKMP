@@ -20,12 +20,20 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 // Modelo local con ID, según EP6 (reemplaza Pair<String,Int> en memoria)
 data class MateriaUI(val id: Int, val nombre: String, val dificultad: Int)
 
+// Refleja exactamente el MateriaDto del backend.
+@Serializable
+private data class MateriaApiDto(val id: Int, val nombre: String, val dificultad: Int)
+
+private val jsonParserDashboard = Json { ignoreUnknownKeys = true }
+
 @Composable
-fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> Unit) {
+fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSesion: () -> Unit) {
     var mostrarFormulario by remember { mutableStateOf(false) }
     var materias by remember { mutableStateOf<List<MateriaUI>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
@@ -45,12 +53,15 @@ fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> 
             val resp = client.get("${ApiConfig.BASE_URL}/materias") {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            val regex = Regex(""""id":(\d+),"nombre":"([^"]+)","dificultad":(\d+)""")
-            val lista = regex.findAll(resp).map {
-                MateriaUI(it.groupValues[1].toInt(),
-                          it.groupValues[2],
-                          it.groupValues[3].toInt())
-            }.toList()
+            // Antes esto se leia con un regex que exigia el JSON pegado
+            // sin espacios ("id":1,"nombre":"X"...). El serializador del
+            // backend no siempre devuelve ese formato exacto (puede variar
+            // el espaciado), por lo que el regex fallaba en silencio y
+            // la lista quedaba vacia aunque la materia si se hubiera
+            // guardado correctamente en MySQL. Con kotlinx.serialization
+            // se parsea el JSON real sin depender de su formato textual.
+            val listaDto = jsonParserDashboard.decodeFromString<List<MateriaApiDto>>(resp)
+            val lista = listaDto.map { MateriaUI(it.id, it.nombre, it.dificultad) }
             materias = lista
 
             // Carga las fechas de examen de cada materia para el bloqueo "EXAMEN HOY"
@@ -262,7 +273,11 @@ fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> 
                         nombre = materia.nombre,
                         dificultad = materia.dificultad,
                         bloqueada = bloqueada,
-                        onClick = { materiaDetalle = materia }
+                        onClick = {
+                            // Si tiene examen hoy, no se abre el detalle (ahi se generaria
+                            // contenido de IA); en su lugar se informa al alumno.
+                            if (!bloqueada) materiaDetalle = materia
+                        }
                     )
                 }
             }
@@ -274,7 +289,7 @@ fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> 
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .clickable { onVerStudyCast(TabStudyCast.CONSEJOS) },
+                    .clickable { onVerStudyCast() },
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = VerdePrimario),
                 elevation = CardDefaults.cardElevation(6.dp)
@@ -363,11 +378,11 @@ fun DashboardView(onVerStudyCast: (TabStudyCast) -> Unit, onCerrarSesion: () -> 
             ) {
                 BottomNavItem(label = "Dashboard", selected = true, symbol = "⊞")
                 BottomNavItem(label = "StudyCast", selected = false, symbol = "▶",
-                    onClick = { onVerStudyCast(TabStudyCast.CONSEJOS) })
+                    onClick = onVerStudyCast)
                 BottomNavItem(label = "Audio", selected = false, symbol = "♪",
-                    onClick = { onVerStudyCast(TabStudyCast.PODCAST) })
+                    onClick = onVerStudyCast)
                 BottomNavItem(label = "Peers", selected = false, symbol = "⊙",
-                    onClick = { mostrarProximamente = true })
+                    onClick = onVerPeers)
             }
         }
 

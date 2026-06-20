@@ -7,7 +7,6 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.insertAndGetId
-import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.*
@@ -21,7 +20,7 @@ fun Routing.tarjetaRoutes() {
         val req = call.receive<GenerarTarjetasRequest>()
 
         // Llamar a Groq segun si hay imagen o no
-        val tarjetasJson = if (req.imagenBase64 != null) {
+        val tarjetasTexto = if (req.imagenBase64 != null) {
             GroqService.generarTarjetasDesdeImagen(
                 req.imagenBase64, req.texto ?: "", req.materia
             )
@@ -31,12 +30,19 @@ fun Routing.tarjetaRoutes() {
             )
         }
 
-        // Parsear el JSON de tarjetas y guardar en MySQL
-        val tarjetasGuardadas = mutableListOf<TarjetaResponse>()
-        val regexPar = Regex(""""pregunta":"([^"]+)","respuesta":"([^"]+)"""")
-        regexPar.findAll(tarjetasJson).forEach { match ->
-            val pregunta  = match.groupValues[1]
-            val respuesta = match.groupValues[2]
+        // Antes esto se parseaba con un regex que exigia el JSON pegado
+        // sin espacios; ahora usamos un parser real que tolera el formato
+        // que de verdad devuelve el modelo (con saltos de linea, etc).
+        val pares = GroqService.extraerTarjetas(tarjetasTexto)
+
+        if (pares.isEmpty()) {
+            call.respond(HttpStatusCode.UnprocessableEntity, mapOf(
+                "error" to "La IA no devolvió tarjetas en un formato válido. Intenta de nuevo."
+            ))
+            return@post
+        }
+
+        val tarjetasGuardadas = pares.map { (pregunta, respuesta) ->
             val id = transaction {
                 Tarjetas.insertAndGetId {
                     it[Tarjetas.materiaId] = req.materiaId
@@ -45,11 +51,11 @@ fun Routing.tarjetaRoutes() {
                     it[Tarjetas.respuesta] = respuesta
                 }.value
             }
-            tarjetasGuardadas.add(TarjetaResponse(id, pregunta, respuesta))
+            TarjetaDto(id, pregunta, respuesta)
         }
 
         call.respond(HttpStatusCode.Created,
-            TarjetasGeneradasResponse(tarjetasGuardadas, tarjetasGuardadas.size))
+            GenerarTarjetasResponse(tarjetasGuardadas, tarjetasGuardadas.size))
     }
 
     // GET /tarjetas/{materiaId} - lista tarjetas activas de una materia
@@ -60,10 +66,10 @@ fun Routing.tarjetaRoutes() {
         }
         val lista = transaction {
             Tarjetas.selectAll().where { Tarjetas.materiaId eq materiaId }
-                .map { TarjetaResponse(
-                    id        = it[Tarjetas.id].value,
-                    pregunta  = it[Tarjetas.pregunta],
-                    respuesta = it[Tarjetas.respuesta]
+                .map { TarjetaDto(
+                    it[Tarjetas.id].value,
+                    it[Tarjetas.pregunta],
+                    it[Tarjetas.respuesta]
                 )}
         }
         call.respond(lista)

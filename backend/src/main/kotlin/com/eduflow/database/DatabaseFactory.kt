@@ -7,14 +7,19 @@ import com.eduflow.model.*
 
 object DatabaseFactory {
     fun init() {
-        val host     = System.getenv("MYSQLHOST")     ?: "mysql.railway.internal"
-        val port     = System.getenv("MYSQLPORT")     ?: "3306"
+        // Railway inyecta estas variables automáticamente al conectar el servicio MySQL.
+        // Los valores de respaldo (?:) solo sirven para pruebas locales, nunca se usan en producción.
+        val host     = System.getenv("MYSQLHOST")     ?: "thomas.proxy.rlwy.net"
+        val port     = System.getenv("MYSQLPORT")     ?: "12461"
         val database = System.getenv("MYSQLDATABASE") ?: "railway"
         val user     = System.getenv("MYSQLUSER")     ?: "root"
         val password = System.getenv("MYSQLPASSWORD") ?: "qkEQHAIbXvEaICkzBdxKChtiDQFkSniM"
 
+        // IMPORTANTE: la URL se construye con las variables de arriba.
+        // Antes estaba hardcodeada con un host/puerto fijo y eso es lo que
+        // causaba inconsistencias si Railway cambiaba el proxy o las credenciales.
         Database.connect(
-            url      ="jdbc:mysql://root:qkEQHAIbXvEaICkzBdxKChtiDQFkSniM@thomas.proxy.rlwy.net:12461/railway",
+            url      = "jdbc:mysql://$host:$port/$database",
             driver   = "com.mysql.cj.jdbc.Driver",
             user     = user,
             password = password

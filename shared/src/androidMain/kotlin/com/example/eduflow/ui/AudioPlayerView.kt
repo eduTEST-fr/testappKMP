@@ -17,8 +17,23 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.Base64
+
+// Refleja exactamente el PodcastDto del backend. Antes el guion y el
+// titulo se leian con regex, y como el guion trae saltos de linea y
+// corchetes como [cheerful], el regex se cortaba ahi y devolvia vacio.
+@Serializable
+private data class PodcastApiDto(
+    val id: Int,
+    val titulo: String,
+    val guion: String,
+    val audioBase64: String
+)
+
+private val jsonParser = Json { ignoreUnknownKeys = true }
 
 @Composable
 actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
@@ -34,6 +49,22 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
     var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     var reproduciendo by remember { mutableStateOf(false) }
 
+    fun cargarDesdeDto(dto: PodcastApiDto) {
+        titulo = dto.titulo
+        guion  = dto.guion
+        if (dto.audioBase64.isNotEmpty()) {
+            val bytes = Base64.getDecoder().decode(dto.audioBase64)
+            val file  = File(context.cacheDir, "podcast_${materia?.id}.wav")
+            file.writeBytes(bytes)
+            mediaPlayer?.release()
+            mediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                prepare()
+            }
+            hayAudio = true
+        }
+    }
+
     // Cargar podcasts existentes
     LaunchedEffect(materia?.id) {
         if (materia == null) return@LaunchedEffect
@@ -43,23 +74,8 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
             ) {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            val rTit   = Regex(""""titulo":"([^"]+)"""")
-            val rGuion = Regex(""""guion":"([^"]+)"""")
-            val rAudio = Regex(""""audioBase64":"([^"]+)"""")
-            titulo = rTit.find(resp)?.groupValues?.get(1) ?: ""
-            guion  = rGuion.find(resp)?.groupValues?.get(1) ?: ""
-            val audioB64 = rAudio.find(resp)?.groupValues?.get(1) ?: ""
-            if (audioB64.isNotEmpty()) {
-                // Guardar WAV en cache y preparar MediaPlayer
-                val bytes = Base64.getDecoder().decode(audioB64)
-                val file  = File(context.cacheDir, "podcast_${materia.id}.wav")
-                file.writeBytes(bytes)
-                mediaPlayer = android.media.MediaPlayer().apply {
-                    setDataSource(file.absolutePath)
-                    prepare()
-                }
-                hayAudio = true
-            }
+            val lista = jsonParser.decodeFromString<List<PodcastApiDto>>(resp)
+            lista.firstOrNull()?.let { cargarDesdeDto(it) }
         } catch (e: Exception) {}
     }
 
@@ -139,30 +155,21 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
                             generando = true; errorMsg = ""
                             scope.launch {
                                 try {
-                                    val resp = client.post(
+                                    val respuesta = client.post(
                                         "${ApiConfig.BASE_URL}/podcasts/generar"
                                     ) {
                                         header("Authorization", "Bearer $token")
                                         contentType(ContentType.Application.Json)
-                                        setBody("""{"materiaId":${materia.id},"examenId":0,
-                                            "materia":"${materia.nombre}","tema":"$tema"}""")
-                                    }.bodyAsText()
-                                    val rTit   = Regex(""""titulo":"([^"]+)"""")
-                                    val rGuion = Regex(""""guion":"([^"]+)"""")
-                                    val rAudio = Regex(""""audioBase64":"([^"]+)"""")
-                                    titulo = rTit.find(resp)?.groupValues?.get(1) ?: ""
-                                    guion  = rGuion.find(resp)?.groupValues?.get(1) ?: ""
-                                    val audioB64 = rAudio.find(resp)?.groupValues?.get(1) ?: ""
-                                    if (audioB64.isNotEmpty()) {
-                                        val bytes = Base64.getDecoder().decode(audioB64)
-                                        val file = File(context.cacheDir,
-                                            "podcast_${materia.id}.wav")
-                                        file.writeBytes(bytes)
-                                        mediaPlayer = android.media.MediaPlayer().apply {
-                                            setDataSource(file.absolutePath)
-                                            prepare()
-                                        }
-                                        hayAudio = true
+                                        setBody("""{"materiaId":${materia.id},"examenId":0,""" +
+                                            """"materia":"${materia.nombre}","tema":"$tema"}""")
+                                    }
+                                    val resp = respuesta.bodyAsText()
+
+                                    if (respuesta.status == HttpStatusCode.UnprocessableEntity) {
+                                        errorMsg = "La IA no pudo generar el podcast. Intenta de nuevo."
+                                    } else {
+                                        val dto = jsonParser.decodeFromString<PodcastApiDto>(resp)
+                                        cargarDesdeDto(dto)
                                     }
                                 } catch (e: Exception) { errorMsg = "Error al generar" }
                                 generando = false

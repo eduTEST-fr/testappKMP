@@ -17,12 +17,16 @@ fun Routing.materiaRoutes() {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
             return@get
         }
+        // Antes esto era un mapOf generico; el serializador por defecto de
+        // Ktor podia variar el espaciado del JSON resultante y eso rompia
+        // el regex del frontend que esperaba el formato pegado sin espacios.
+        // Con un DTO @Serializable el JSON siempre sale consistente.
         val lista = transaction {
             Materias.selectAll().where { Materias.usuarioId eq userId }
-                .map { MateriaResponse(
-                    id         = it[Materias.id].value,
-                    nombre     = it[Materias.nombre],
-                    dificultad = it[Materias.dificultad]
+                .map { MateriaDto(
+                    it[Materias.id].value,
+                    it[Materias.nombre],
+                    it[Materias.dificultad]
                 )}
         }
         call.respond(lista)
@@ -42,7 +46,7 @@ fun Routing.materiaRoutes() {
                 it[dificultad] = req.dificultad
             }.value
         }
-        call.respond(HttpStatusCode.Created, mapOf("id" to id))
+        call.respond(HttpStatusCode.Created, MateriaDto(id, req.nombre, req.dificultad))
     }
 
     // DELETE /materias/{id}
