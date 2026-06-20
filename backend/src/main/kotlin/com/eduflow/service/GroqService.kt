@@ -114,9 +114,23 @@ object GroqService {
     // Antes esto devolvia los bytes del error JSON tal cual y se guardaban
     // en MySQL como si fueran un WAV valido, rompiendo la reproduccion.
     suspend fun generarAudio(texto: String): ByteArray? {
-        // Orpheus tiene limite de 200 chars. Si el guion es mas largo,
-        // se toma solo los primeros 190 chars para no exceder el limite.
-        val textoLimitado = if (texto.length > 190) texto.take(190) else texto
+        // Orpheus tiene limite de 200 chars. Las etiquetas como [cheerful] o
+        // [curious] SI son soportadas por el modelo (vocal directions), asi
+        // que no se quitan -- solo se normalizan espacios/saltos de linea y
+        // se corta en un limite de palabra completa para no partir nada a
+        // la mitad (incluyendo una etiqueta).
+        val textoNormalizado = texto.replace(Regex("\\s+"), " ").trim()
+
+        val textoLimitado = if (textoNormalizado.length > 190) {
+            val corte = textoNormalizado.take(190)
+            val ultimoEspacio = corte.lastIndexOf(' ')
+            if (ultimoEspacio > 0) corte.take(ultimoEspacio) else corte
+        } else textoNormalizado
+
+        if (textoLimitado.isBlank()) {
+            println("GroqService.generarAudio - texto vacío, se descarta")
+            return null
+        }
 
         val bodyJson = buildJsonObject {
             put("model", "canopylabs/orpheus-v1-english")
@@ -125,7 +139,10 @@ object GroqService {
             // autumn, diana, hannah, austin, daniel, troy.
             // "hannah" tiene un tono femenino calido, adecuado para un podcast.
             put("voice", "hannah")
-            put("response_format", "wav")
+            // mp3 en vez de wav: el mismo audio pesa ~10 veces menos
+            // (wav sin comprimir vs mp3 comprimido), lo que evita guardar
+            // archivos pesados en MySQL y acelera la carga en el celular.
+            put("response_format", "mp3")
         }
 
         val response = client.post("https://api.groq.com/openai/v1/audio/speech") {
@@ -137,13 +154,24 @@ object GroqService {
         if (response.status != HttpStatusCode.OK) {
             // Groq devolvio un error (terminos no aceptados, rate limit, etc.)
             // en vez de audio. Se registra en consola para depuracion pero
-            // NO se guarda como si fuera un WAV real.
+            // NO se guarda como si fuera un MP3 real.
             val errorBody = response.bodyAsText()
             println("GroqService.generarAudio - error HTTP ${response.status}: $errorBody")
             return null
         }
 
-        return response.readBytes()
+        val bytes = response.readBytes()
+
+        // Un MP3 real de un par de segundos pesa al menos unos cientos de
+        // bytes. Si llega algo absurdamente chico, es señal de que el
+        // cuerpo no es audio real (por ejemplo un JSON de error con
+        // status 200, caso raro pero posible).
+        if (bytes.size < 200) {
+            println("GroqService.generarAudio - respuesta demasiado pequeña (${bytes.size} bytes), se descarta")
+            return null
+        }
+
+        return bytes
     }
 
     // --- FUNCION AUXILIAR: llamada al chat de Groq ---
