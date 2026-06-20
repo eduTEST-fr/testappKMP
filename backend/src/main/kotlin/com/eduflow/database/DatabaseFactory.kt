@@ -30,6 +30,16 @@ object DatabaseFactory {
                 Usuarios, Materias, Examenes,
                 Tarjetas, Podcasts, RedApoyo
             )
+
+            // Migración manual: si la tabla 'podcasts' ya existía con audio_url como TEXT
+            // (límite 64KB en MySQL), la ampliamos a LONGTEXT (hasta 4GB) para que
+            // quepa el audio del podcast codificado en base64. SchemaUtils no altera
+            // columnas ya existentes, por eso este ALTER se ejecuta a mano.
+            try {
+                exec("ALTER TABLE podcasts MODIFY audio_url LONGTEXT")
+            } catch (e: Exception) {
+                // Si la tabla aun no existe (primer arranque) o ya esta migrada, se ignora.
+            }
         }
     }
 }
