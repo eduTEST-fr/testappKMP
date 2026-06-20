@@ -31,15 +31,18 @@ object DatabaseFactory {
                 Tarjetas, Podcasts, RedApoyo
             )
 
-            // Migración manual: si la tabla 'podcasts' ya existía con audio_url como TEXT
-            // (límite 64KB en MySQL), la ampliamos a LONGTEXT (hasta 4GB) para que
-            // quepa el audio del podcast codificado en base64. SchemaUtils no altera
-            // columnas ya existentes, por eso este ALTER se ejecuta a mano.
+            // Migración manual: la columna vieja 'audio_url' (TEXT/LONGTEXT con base64)
+            // ya no se usa -- el audio ahora se guarda como bytes binarios reales en
+            // 'audio_bytes' (LONGBLOB), mucho mas liviano y sin truncamiento.
+            // SchemaUtils no elimina ni convierte columnas existentes, por eso este
+            // ALTER se ejecuta a mano. Es seguro re-ejecutarlo: si la columna vieja
+            // ya no existe, simplemente no hace nada.
             try {
-                exec("ALTER TABLE podcasts MODIFY audio_url LONGTEXT")
-            } catch (e: Exception) {
-                // Si la tabla aun no existe (primer arranque) o ya esta migrada, se ignora.
-            }
+                exec("ALTER TABLE podcasts DROP COLUMN audio_url")
+            } catch (e: Exception) { /* la columna ya no existe o la tabla es nueva */ }
+            try {
+                exec("ALTER TABLE podcasts MODIFY audio_bytes LONGBLOB")
+            } catch (e: Exception) { /* columna recien creada por createMissingTablesAndColumns ya es BLOB/LONGBLOB segun el driver */ }
         }
     }
 }

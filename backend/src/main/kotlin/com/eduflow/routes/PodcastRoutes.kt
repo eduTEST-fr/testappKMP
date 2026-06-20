@@ -3,14 +3,15 @@ package com.eduflow.routes
 import com.eduflow.model.*
 import com.eduflow.service.GroqService
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.insertAndGetId
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.util.Base64
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.statements.api.ExposedBlob
 
 fun Routing.podcastRoutes() {
     // POST /podcasts/generar
@@ -32,10 +33,6 @@ fun Routing.podcastRoutes() {
         val audioBytes = GroqService.generarAudio(guion)
 
         if (audioBytes == null) {
-            // Groq no entrego audio real (por ejemplo: terminos del modelo
-            // no aceptados en console.groq.com). No se guarda nada invalido
-            // en MySQL; se avisa con un mensaje claro para que se revise
-            // la cuenta de Groq en vez de fallar en silencio en la app.
             call.respond(HttpStatusCode.ServiceUnavailable, mapOf(
                 "error" to "No se pudo generar el audio. Verifica que el modelo de " +
                     "voz esté habilitado en tu cuenta de Groq (console.groq.com)."
@@ -43,28 +40,28 @@ fun Routing.podcastRoutes() {
             return@post
         }
 
-        // Paso 3: guardar en MySQL como base64
-        val audioBase64 = Base64.getEncoder().encodeToString(audioBytes)
+        // Paso 3: guardar en MySQL como BLOB binario real (ya NO base64/texto).
+        // Esto evita los logs gigantes y el truncamiento que daba MySQL antes,
+        // porque ya no viaja como un string JSON enorme en cada insert/select.
         val titulo = "Podcast: ${req.tema} - ${req.materia}"
 
         val id = transaction {
             Podcasts.insertAndGetId {
-                it[Podcasts.materiaId] = req.materiaId
-                it[Podcasts.examenId]  = if (req.examenId > 0) req.examenId else null
-                it[Podcasts.titulo]    = titulo
-                it[Podcasts.guion]     = guion
-                it[Podcasts.audioUrl]  = audioBase64
+                it[Podcasts.materiaId]   = req.materiaId
+                it[Podcasts.examenId]    = if (req.examenId > 0) req.examenId else null
+                it[Podcasts.titulo]      = titulo
+                it[Podcasts.guion]       = guion
+                it[Podcasts.audioBytes]  = ExposedBlob(audioBytes)
             }.value
         }
 
-        // Antes esto era un mapOf que el frontend leia con regex; al ser
-        // un guion con saltos de linea y comillas, el regex casi siempre
-        // fallaba. Con @Serializable, kotlinx.serialization escapa el
-        // JSON correctamente y el cliente lo lee sin perder texto.
-        call.respond(HttpStatusCode.Created, PodcastDto(id, titulo, guion, audioBase64))
+        // El cliente ya no recibe el audio en el JSON: recibe una ruta corta
+        // que apunta al endpoint binario de abajo (GET /podcasts/audio/{id}).
+        call.respond(HttpStatusCode.Created,
+            PodcastDto(id, titulo, guion, "/podcasts/audio/$id"))
     }
 
-    // GET /podcasts/{materiaId}
+    // GET /podcasts/{materiaId} - lista los podcasts de una materia (sin el audio pesado)
     get("/podcasts/{materiaId}") {
         val materiaId = call.parameters["materiaId"]?.toIntOrNull() ?: run {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
@@ -72,13 +69,33 @@ fun Routing.podcastRoutes() {
         }
         val lista = transaction {
             Podcasts.selectAll().where { Podcasts.materiaId eq materiaId }
-                .map { PodcastDto(
-                    it[Podcasts.id].value,
-                    it[Podcasts.titulo],
-                    it[Podcasts.guion] ?: "",
-                    it[Podcasts.audioUrl] ?: ""
+                .map { row -> PodcastDto(
+                    row[Podcasts.id].value,
+                    row[Podcasts.titulo],
+                    row[Podcasts.guion] ?: "",
+                    "/podcasts/audio/${row[Podcasts.id].value}"
                 )}
         }
         call.respond(lista)
+    }
+
+    // GET /podcasts/audio/{id} - sirve el WAV real como bytes binarios.
+    // El cliente apunta su reproductor (MediaPlayer / <audio>) directo a esta URL,
+    // sin pasar por JSON ni base64 en ningun momento.
+    get("/podcasts/audio/{id}") {
+        val id = call.parameters["id"]?.toIntOrNull() ?: run {
+            call.respond(HttpStatusCode.BadRequest, "ID inválido")
+            return@get
+        }
+        val bytes = transaction {
+            Podcasts.selectAll().where { Podcasts.id eq id }
+                .singleOrNull()
+                ?.get(Podcasts.audioBytes)?.bytes
+        }
+        if (bytes == null) {
+            call.respond(HttpStatusCode.NotFound, "Audio no encontrado")
+            return@get
+        }
+        call.respondBytes(bytes, ContentType.parse("audio/wav"))
     }
 }

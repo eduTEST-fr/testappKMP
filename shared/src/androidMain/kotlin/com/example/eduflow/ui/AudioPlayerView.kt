@@ -20,17 +20,15 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.util.Base64
 
-// Refleja exactamente el PodcastDto del backend. Antes el guion y el
-// titulo se leian con regex, y como el guion trae saltos de linea y
-// corchetes como [cheerful], el regex se cortaba ahi y devolvia vacio.
+// Refleja exactamente el PodcastDto del backend. audioUrl ahora es una
+// ruta corta (ej: /podcasts/audio/7) en vez de un string base64 gigante.
 @Serializable
 private data class PodcastApiDto(
     val id: Int,
     val titulo: String,
     val guion: String,
-    val audioBase64: String
+    val audioUrl: String
 )
 
 private val jsonParser = Json { ignoreUnknownKeys = true }
@@ -49,27 +47,27 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
     var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     var reproduciendo by remember { mutableStateOf(false) }
 
-    fun cargarDesdeDto(dto: PodcastApiDto) {
+    suspend fun cargarDesdeDto(dto: PodcastApiDto) {
         titulo = dto.titulo
         guion  = dto.guion
-        if (dto.audioBase64.isNotEmpty()) {
-            try {
-                val bytes = Base64.getDecoder().decode(dto.audioBase64)
-                val file  = File(context.cacheDir, "podcast_${materia?.id}.wav")
-                file.writeBytes(bytes)
-                mediaPlayer?.release()
-                mediaPlayer = android.media.MediaPlayer().apply {
-                    setDataSource(file.absolutePath)
-                    prepare()
-                }
-                hayAudio = true
-            } catch (e: Exception) {
-                // El audio guardado no es un WAV valido (por ejemplo si quedo
-                // un registro viejo de antes de este fix). Se muestra el guion
-                // igual, pero sin reproductor, en vez de crashear la app.
-                errorMsg = "El audio guardado no es válido. Genera el podcast de nuevo."
-                hayAudio = false
+        try {
+            // Se descargan los bytes del WAV directo desde el backend
+            // (GET /podcasts/audio/{id}). Ya no hay base64 ni JSON de por
+            // medio: la respuesta es el archivo de audio crudo.
+            val bytes = client.get("${ApiConfig.BASE_URL}${dto.audioUrl}") {
+                header("Authorization", "Bearer $token")
+            }.readBytes()
+            val file = File(context.cacheDir, "podcast_${materia?.id}.wav")
+            file.writeBytes(bytes)
+            mediaPlayer?.release()
+            mediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                prepare()
             }
+            hayAudio = true
+        } catch (e: Exception) {
+            errorMsg = "El audio guardado no es válido. Genera el podcast de nuevo."
+            hayAudio = false
         }
     }
 
@@ -83,7 +81,8 @@ actual fun AudioPlayerView(materia: MateriaUI?, token: String) {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
             val lista = jsonParser.decodeFromString<List<PodcastApiDto>>(resp)
-            lista.firstOrNull()?.let { cargarDesdeDto(it) }
+            val primero = lista.firstOrNull()
+            if (primero != null) cargarDesdeDto(primero)
         } catch (e: Exception) {}
     }
 

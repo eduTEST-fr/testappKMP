@@ -57,5 +57,5 @@ data class PodcastDto(
     val id: Int,
     val titulo: String,
     val guion: String,
-    val audioBase64: String
+    val audioUrl: String  // ruta relativa, ej: /podcasts/audio/7 -- ya NO es base64
 )
