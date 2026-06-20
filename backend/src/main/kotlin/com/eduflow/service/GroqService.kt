@@ -121,7 +121,10 @@ object GroqService {
         val bodyJson = buildJsonObject {
             put("model", "canopylabs/orpheus-v1-english")
             put("input", textoLimitado)
-            put("voice", "aria")
+            // "aria" no existe en Orpheus; las voces validas son:
+            // autumn, diana, hannah, austin, daniel, troy.
+            // "hannah" tiene un tono femenino calido, adecuado para un podcast.
+            put("voice", "hannah")
             put("response_format", "wav")
         }
 
