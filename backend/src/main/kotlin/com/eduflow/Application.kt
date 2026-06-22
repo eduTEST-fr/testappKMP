@@ -34,5 +34,7 @@ fun Application.module() {
         podcastRoutes()
         redApoyoRoutes()
         consejoRoutes()
+        peersRoutes()
+        adminPeersRoutes()
     }
 }

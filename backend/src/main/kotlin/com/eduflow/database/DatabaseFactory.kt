@@ -28,7 +28,8 @@ object DatabaseFactory {
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
                 Usuarios, Materias, Examenes,
-                Tarjetas, Podcasts, RedApoyo
+                Tarjetas, Podcasts, RedApoyo,
+                AsesoresPerfil, PeersSolicitudes, PeersRespuestas, PeersCalificaciones
             )
 
             // Migración manual: la columna vieja 'audio_url' (TEXT/LONGTEXT con base64)

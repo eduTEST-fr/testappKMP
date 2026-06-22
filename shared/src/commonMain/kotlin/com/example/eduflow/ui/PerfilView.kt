@@ -2,33 +2,91 @@ package com.example.eduflow.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.eduflow.config.ApiConfig
 import com.example.eduflow.storage.PerfilStorage
 import com.example.eduflow.storage.SesionStorage
+import io.ktor.client.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
-// Perfil del usuario para la Red de Apoyo: carrera, cuatrimestre y materias
-// en las que destaca. Es solo visual/local por ahora (sin backend), tal
-// como se pidió; todo se guarda en el dispositivo via PerfilStorage.
+@Serializable
+private data class PerfilApiDto(
+    val id: Int,
+    val nombre: String,
+    val carrera: String = "",
+    val cuatrimestre: Int = 1,
+    val sobreMi: String = "",
+    val materiasDestaca: String = "",
+    val rol: String = "ALUMNO",
+    val avatarId: String = "avatar_1",
+    val grado: String = "",
+    val especialidad: String = "",
+    val permiteAsesoria: Boolean = false
+)
+
+private val jsonParser = Json { ignoreUnknownKeys = true }
+
+// Perfil del usuario para la Red de Apoyo: carrera, cuatrimestre, materias
+// destacadas y avatar. Antes esto vivia solo en PerfilStorage (local en el
+// dispositivo); ahora se sincroniza con el backend (GET/PUT /peers/perfil)
+// para que otros usuarios puedan ver el perfil real. PerfilStorage se
+// mantiene como respaldo mientras carga o si falla la conexión.
 @Composable
 fun PerfilView(onVolver: () -> Unit) {
-    var editando by remember { mutableStateOf(false) }
-    var carrera      by remember { mutableStateOf(PerfilStorage.obtenerCarrera()) }
-    var cuatrimestre by remember { mutableStateOf(PerfilStorage.obtenerCuatrimestre()) }
-    var ubicacion     by remember { mutableStateOf(PerfilStorage.obtenerUbicacion()) }
-    var bio           by remember { mutableStateOf(PerfilStorage.obtenerBio()) }
-    var materias      by remember { mutableStateOf(PerfilStorage.obtenerMateriasDestacadas()) }
-    var nuevaMateria  by remember { mutableStateOf("") }
-
+    val scope  = rememberCoroutineScope()
+    val client = remember { HttpClient() }
+    val token  = SesionStorage.obtenerToken() ?: ""
     val nombre = SesionStorage.obtenerNombre()
+
+    var editando      by remember { mutableStateOf(false) }
+    var cargando      by remember { mutableStateOf(true) }
+    var guardando     by remember { mutableStateOf(false) }
+    var errorMsg       by remember { mutableStateOf("") }
+
+    var carrera        by remember { mutableStateOf(PerfilStorage.obtenerCarrera()) }
+    var cuatrimestre    by remember { mutableStateOf(PerfilStorage.obtenerCuatrimestre()) }
+    var bio              by remember { mutableStateOf(PerfilStorage.obtenerBio()) }
+    var materias         by remember { mutableStateOf(PerfilStorage.obtenerMateriasDestacadas()) }
+    var nuevaMateria     by remember { mutableStateOf("") }
+    var avatarId          by remember { mutableStateOf("avatar_1") }
+    var rol                by remember { mutableStateOf("ALUMNO") }
+    var grado                by remember { mutableStateOf("") }
+    var especialidad          by remember { mutableStateOf("") }
+    var permiteAsesoria        by remember { mutableStateOf(false) }
+
+    suspend fun cargarPerfil() {
+        cargando = true
+        try {
+            val resp = client.get("${ApiConfig.BASE_URL}/peers/perfil") {
+                header("Authorization", "Bearer $token")
+            }.bodyAsText()
+            val dto = jsonParser.decodeFromString<PerfilApiDto>(resp)
+            carrera = dto.carrera
+            cuatrimestre = dto.cuatrimestre.toString()
+            bio = dto.sobreMi
+            materias = dto.materiasDestaca.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            avatarId = dto.avatarId
+            rol = dto.rol
+            grado = dto.grado
+            especialidad = dto.especialidad
+            permiteAsesoria = dto.permiteAsesoria
+        } catch (e: Exception) { errorMsg = "No se pudo cargar el perfil desde el servidor." }
+        cargando = false
+    }
+
+    LaunchedEffect(Unit) { cargarPerfil() }
 
     Box(
         modifier = Modifier.fillMaxSize().background(Beige).windowInsetsPadding(WindowInsets.systemBars)
@@ -53,40 +111,78 @@ fun PerfilView(onVolver: () -> Unit) {
                     .background(Color(0xFFDDE8E0))
             )
 
+            if (cargando) {
+                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = VerdePrimario)
+                }
+                return@Column
+            }
+
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                Box(
-                    modifier = Modifier.offset(y = (-44).dp)
-                ) {
+                Box(modifier = Modifier.offset(y = (-44).dp)) {
                     Box(
-                        modifier = Modifier.size(88.dp).clip(CircleShape)
-                            .background(Color.White)
-                            .padding(4.dp)
-                            .clip(CircleShape)
-                            .background(VerdePrimario),
+                        modifier = Modifier.size(88.dp)
+                            .background(Color.White, shape = androidx.compose.foundation.shape.CircleShape)
+                            .padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(nombre.take(1).uppercase(), fontSize = 30.sp,
-                            fontWeight = FontWeight.Bold, color = Color.White)
+                        AvatarIcono(avatarId = avatarId, sizeDp = 80)
                     }
                 }
 
                 Column(modifier = Modifier.offset(y = (-28).dp)) {
-                    Text(nombre, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(nombre, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                        if (rol != "ALUMNO") {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(shape = RoundedCornerShape(8.dp), color = VerdePrimario) {
+                                Text(if (rol == "ASESOR") "Asesor" else "Admin",
+                                    fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                            }
+                        }
+                    }
 
                     if (editando) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Elige tu icono de perfil", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            color = TextoPrimario, modifier = Modifier.padding(bottom = 8.dp))
+                        SelectorAvatar(avatarSeleccionado = avatarId, onSeleccionar = { avatarId = it })
+                        Spacer(Modifier.height(14.dp))
                         CampoTexto("Carrera", carrera, "Ej: Ing. en Sistemas") { carrera = it }
                         Spacer(Modifier.height(8.dp))
-                        CampoTexto("Cuatrimestre", cuatrimestre, "Ej: 5to Cuatrimestre") { cuatrimestre = it }
-                        Spacer(Modifier.height(8.dp))
-                        CampoTexto("Ubicación", ubicacion, "Ej: Tulancingo, Hidalgo") { ubicacion = it }
+                        CampoTexto("Cuatrimestre (número)", cuatrimestre, "Ej: 5") {
+                            cuatrimestre = it.filter { c -> c.isDigit() }
+                        }
+                        if (rol == "ASESOR") {
+                            Spacer(Modifier.height(8.dp))
+                            CampoTexto("Grado académico", grado, "Ej: Licenciatura") { grado = it }
+                            Spacer(Modifier.height(8.dp))
+                            CampoTexto("Especialidad", especialidad, "Ej: Cálculo y Álgebra") { especialidad = it }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(
+                                    checked = permiteAsesoria, onCheckedChange = { permiteAsesoria = it },
+                                    colors = SwitchDefaults.colors(checkedTrackColor = VerdePrimario)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Disponible para dar asesorías", fontSize = 13.sp, color = TextoPrimario)
+                            }
+                        }
                     } else {
-                        Text("🎓  $carrera", fontSize = 13.sp, color = TextoSecundario,
+                        Text("Carrera: $carrera", fontSize = 13.sp, color = TextoSecundario,
                             modifier = Modifier.padding(top = 6.dp))
-                        Text("📘  $cuatrimestre", fontSize = 13.sp, color = TextoSecundario,
+                        Text("Cuatrimestre: ${cuatrimestre}°", fontSize = 13.sp, color = TextoSecundario,
                             modifier = Modifier.padding(top = 3.dp))
-                        Text("📍  $ubicacion", fontSize = 13.sp, color = TextoSecundario,
-                            modifier = Modifier.padding(top = 3.dp))
+                        if (rol == "ASESOR" && especialidad.isNotBlank()) {
+                            Text("Especialidad: $especialidad", fontSize = 13.sp, color = TextoSecundario,
+                                modifier = Modifier.padding(top = 3.dp))
+                        }
+                    }
+
+                    if (errorMsg.isNotEmpty()) {
+                        Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp))
                     }
 
                     Spacer(Modifier.height(14.dp))
@@ -94,16 +190,48 @@ fun PerfilView(onVolver: () -> Unit) {
                     Button(
                         onClick = {
                             if (editando) {
-                                PerfilStorage.guardarPerfil(carrera.trim(), cuatrimestre.trim(), ubicacion.trim(), bio.trim())
-                                PerfilStorage.guardarMateriasDestacadas(materias)
+                                guardando = true; errorMsg = ""
+                                scope.launch {
+                                    try {
+                                        client.put("${ApiConfig.BASE_URL}/peers/perfil") {
+                                            header("Authorization", "Bearer $token")
+                                            contentType(ContentType.Application.Json)
+                                            setBody(
+                                                "{\"carrera\":\"${escaparJson(carrera)}\"," +
+                                                "\"cuatrimestre\":${cuatrimestre.toIntOrNull() ?: 1}," +
+                                                "\"sobreMi\":\"${escaparJson(bio)}\"," +
+                                                "\"materiasDestaca\":\"${escaparJson(materias.joinToString(","))}\"," +
+                                                "\"avatarId\":\"$avatarId\"" +
+                                                if (rol == "ASESOR")
+                                                    ",\"grado\":\"${escaparJson(grado)}\"," +
+                                                    "\"especialidad\":\"${escaparJson(especialidad)}\"," +
+                                                    "\"permiteAsesoria\":$permiteAsesoria}"
+                                                else "}"
+                                            )
+                                        }
+                                        // Respaldo local para que el perfil cargue rapido offline
+                                        PerfilStorage.guardarPerfil(carrera.trim(), cuatrimestre.trim(), "", bio.trim())
+                                        PerfilStorage.guardarMateriasDestacadas(materias)
+                                        editando = false
+                                    } catch (e: Exception) {
+                                        errorMsg = "No se pudo guardar. Revisa tu conexión."
+                                    }
+                                    guardando = false
+                                }
+                            } else {
+                                editando = true
                             }
-                            editando = !editando
                         },
                         shape = RoundedCornerShape(12.dp),
+                        enabled = !guardando,
                         colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)
                     ) {
-                        Text(if (editando) "Guardar cambios" else "Editar Perfil",
-                            color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        if (guardando)
+                            CircularProgressIndicator(color = Color.White,
+                                modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else
+                            Text(if (editando) "Guardar cambios" else "Editar Perfil",
+                                color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 }
 

@@ -159,17 +159,21 @@ fun MateriaFolderCard(nombre: String, dificultad: Int, icono: String, onClick: (
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFDDE8E0)),
-                contentAlignment = Alignment.Center
-            ) { Text(icono, fontSize = 18.sp, color = VerdePrimario, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(nombre, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextoPrimario)
-                Text("Dificultad $dificultad/10", fontSize = 12.sp, color = TextoSecundario)
+        Column {
+            MateriaIlustracion(
+                nombre = nombre,
+                modifier = Modifier.fillMaxWidth().height(110.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(nombre, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                    Text("Dificultad $dificultad/10", fontSize = 12.sp, color = TextoSecundario)
+                }
+                Text("›", fontSize = 20.sp, color = TextoSecundario)
             }
-            Text("›", fontSize = 20.sp, color = TextoSecundario)
         }
     }
 }
@@ -233,6 +237,7 @@ private fun AudiosBibliotecaMateria(materia: MateriaUI, token: String) {
                 }
             }
         )
+        return
     }
 
     when {
@@ -366,10 +371,6 @@ private fun EpisodioCard(episodio: Episodio, token: String, onCompletado: () -> 
             if (episodio.guion.isNotEmpty())
                 Text(episodio.guion.take(120) + "...", fontSize = 12.sp,
                     color = Color.White.copy(0.72f), modifier = Modifier.padding(top = 6.dp))
-            Spacer(Modifier.height(20.dp))
-
-            AudioPlayerWidget(audioUrl = episodio.audioUrl, token = token)
-
             Spacer(Modifier.height(16.dp))
             if (episodio.completado) {
                 Surface(

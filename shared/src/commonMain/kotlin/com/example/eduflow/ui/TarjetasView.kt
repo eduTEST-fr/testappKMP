@@ -109,6 +109,7 @@ fun TarjetasBibliotecaView(materia: MateriaUI, token: String) {
                 }
             }
         )
+        return
     }
 
     when {

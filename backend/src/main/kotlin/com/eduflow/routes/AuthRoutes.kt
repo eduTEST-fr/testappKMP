@@ -61,7 +61,7 @@ fun Routing.authRoutes() {
             return@post
         }
 
-        val token = AuthService.generarToken(usuario[Usuarios.id].value)
+        val token = AuthService.generarToken(usuario[Usuarios.id].value, usuario[Usuarios.rol])
         call.respond(mapOf("token" to token, "nombre" to usuario[Usuarios.nombre]))
     }
 }

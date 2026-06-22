@@ -9,6 +9,13 @@ object Usuarios : IntIdTable("usuarios") {
     val correo = varchar("correo", 100).uniqueIndex()
     val password = varchar("password", 255)
     val nombre = varchar("nombre", 100)
+    // --- EP8: Red de Apoyo (perfil + rol) ---
+    val carrera = varchar("carrera", 150).nullable()
+    val cuatrimestre = integer("cuatrimestre").default(1)
+    val sobreMi = text("sobre_mi").nullable()
+    val materiasDestaca = text("materias_destaca").nullable() // CSV: "Algebra,Calculo"
+    val rol = varchar("rol", 20).default("ALUMNO") // ALUMNO | ASESOR | ADMIN
+    val avatarId = varchar("avatar_id", 30).default("avatar_1") // icono de perfil predeterminado
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }
 
@@ -56,5 +63,41 @@ object RedApoyo : IntIdTable("red_apoyo") {
     val materia = varchar("materia", 100)
     val mensaje = text("mensaje")
     val activo = bool("activo").clientDefault { true }
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+// --- EP8: Red de Apoyo entre Pares ---
+
+object AsesoresPerfil : IntIdTable("asesores_perfil") {
+    val usuarioId = integer("usuario_id").references(Usuarios.id).uniqueIndex()
+    val grado = varchar("grado", 50) // LICENCIATURA | MAESTRIA | DOCTORADO
+    val especialidad = varchar("especialidad", 200).nullable()
+    val descripcion = text("descripcion").nullable()
+    val permiteAsesoria = bool("permite_asesoria").clientDefault { false }
+}
+
+object PeersSolicitudes : IntIdTable("peers_solicitudes") {
+    val autorId = integer("autor_id").references(Usuarios.id)
+    val titulo = varchar("titulo", 200)
+    val descripcion = text("descripcion")
+    val imagenBase64 = largeText("imagen_base64").nullable()
+    val materia = varchar("materia", 100).nullable()
+    val estado = varchar("estado", 20).clientDefault { "ABIERTA" } // ABIERTA | CERRADA
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object PeersRespuestas : IntIdTable("peers_respuestas") {
+    val solicitudId = integer("solicitud_id").references(PeersSolicitudes.id)
+    val autorId = integer("autor_id").references(Usuarios.id)
+    val contenido = text("contenido")
+    val imagenBase64 = largeText("imagen_base64").nullable()
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object PeersCalificaciones : IntIdTable("peers_calificaciones") {
+    val asesorId = integer("asesor_id").references(Usuarios.id)
+    val alumnoId = integer("alumno_id").references(Usuarios.id)
+    val solicitudId = integer("solicitud_id").references(PeersSolicitudes.id)
+    val estrellas = integer("estrellas") // 1..5
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }

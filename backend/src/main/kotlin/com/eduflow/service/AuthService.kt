@@ -15,10 +15,15 @@ object AuthService {
     fun verificarPassword(plain: String, hash: String): Boolean =
         BCrypt.checkpw(plain, hash)
 
-    fun generarToken(userId: Int): String = JWT.create()
+    fun generarToken(userId: Int, rol: String = "ALUMNO"): String = JWT.create()
         .withClaim("userId", userId)
+        .withClaim("rol", rol)
         .withExpiresAt(Date(System.currentTimeMillis() + 86_400_000)) // 24h
         .sign(algorithm)
+
+    fun obtenerRol(token: String): String = try {
+        JWT.require(algorithm).build().verify(token).getClaim("rol").asString() ?: "ALUMNO"
+    } catch (e: Exception) { "ALUMNO" }
 
     fun verificarToken(token: String): Int? = try {
         JWT.require(algorithm).build().verify(token).getClaim("userId").asInt()

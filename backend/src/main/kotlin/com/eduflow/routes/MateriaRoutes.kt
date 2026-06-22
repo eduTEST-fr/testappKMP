@@ -74,3 +74,10 @@ fun obtenerUserId(call: io.ktor.server.application.ApplicationCall): Int? {
         ?.removePrefix("Bearer ") ?: return null
     return AuthService.verificarToken(token)
 }
+
+// Funcion auxiliar compartida: extrae el rol del JWT (ALUMNO por defecto)
+fun obtenerRol(call: io.ktor.server.application.ApplicationCall): String {
+    val token = call.request.headers["Authorization"]
+        ?.removePrefix("Bearer ") ?: return "ALUMNO"
+    return AuthService.obtenerRol(token)
+}
