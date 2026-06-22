@@ -55,13 +55,14 @@ fun Routing.podcastRoutes() {
                 it[Podcasts.titulo]      = titulo
                 it[Podcasts.guion]       = guion
                 it[Podcasts.audioBytes]  = ExposedBlob(audioBytes)
+                it[Podcasts.tema]        = req.tema.trim().takeIf { it.isNotEmpty() } ?: "General"
             }.value
         }
 
         // El cliente ya no recibe el audio en el JSON: recibe una ruta corta
         // que apunta al endpoint binario de abajo (GET /podcasts/audio/{id}).
         call.respond(HttpStatusCode.Created,
-            PodcastDto(id, titulo, guion, "/podcasts/audio/$id"))
+            PodcastDto(id, titulo, guion, "/podcasts/audio/$id", req.tema, false))
     }
 
     // GET /podcasts/{materiaId} - lista los podcasts de una materia (sin el audio pesado)
@@ -76,10 +77,26 @@ fun Routing.podcastRoutes() {
                     row[Podcasts.id].value,
                     row[Podcasts.titulo],
                     row[Podcasts.guion] ?: "",
-                    "/podcasts/audio/${row[Podcasts.id].value}"
+                    "/podcasts/audio/${row[Podcasts.id].value}",
+                    row[Podcasts.tema],
+                    row[Podcasts.completado]
                 )}
         }
         call.respond(lista)
+    }
+
+    // PUT /podcasts/{id}/completar - marca un episodio como escuchado completo
+    put("/podcasts/{id}/completar") {
+        val id = call.parameters["id"]?.toIntOrNull() ?: run {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
+            return@put
+        }
+        transaction {
+            Podcasts.update({ Podcasts.id eq id }) {
+                it[Podcasts.completado] = true
+            }
+        }
+        call.respond(HttpStatusCode.OK, mapOf("ok" to true))
     }
 
     // GET /podcasts/audio/{id} - sirve el WAV real como bytes binarios.

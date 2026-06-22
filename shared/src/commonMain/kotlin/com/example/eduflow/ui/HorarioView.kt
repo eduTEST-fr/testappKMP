@@ -47,7 +47,7 @@ fun HorarioView() {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "StudyFlow",
+            text = "EduFlow",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = VerdePrimario,

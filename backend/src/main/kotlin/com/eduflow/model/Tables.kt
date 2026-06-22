@@ -30,6 +30,10 @@ object Tarjetas : IntIdTable("tarjetas") {
     val examenId = integer("examen_id").references(Examenes.id).nullable()
     val pregunta = text("pregunta")
     val respuesta = text("respuesta")
+    // Subcarpeta/tema al que pertenece el set de tarjetas (ej: "Matrices").
+    // Nullable+default para no romper filas viejas ya guardadas en MySQL.
+    val tema = varchar("tema", 150).default("General")
+    val completado = bool("completado").clientDefault { false }
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }
 
@@ -39,6 +43,10 @@ object Podcasts : IntIdTable("podcasts") {
     val titulo = varchar("titulo", 200)
     val audioBytes = blob("audio_bytes").nullable() // MP3 en español (Google Translate TTS)
     val guion = text("guion").nullable()
+    // Subcarpeta/tema del episodio (ya viaja en GenerarPodcastRequest.tema,
+    // ahora tambien se persiste como columna para poder agrupar/filtrar).
+    val tema = varchar("tema", 150).default("General")
+    val completado = bool("completado").clientDefault { false }
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }
 

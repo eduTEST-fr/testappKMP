@@ -13,7 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.storage.PerfilStorage
 import com.example.eduflow.storage.SesionStorage
+import eduflow.shared.generated.resources.Res
+import eduflow.shared.generated.resources.eduflow_icon
+import org.jetbrains.compose.resources.painterResource
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -33,7 +37,13 @@ private data class MateriaApiDto(val id: Int, val nombre: String, val dificultad
 private val jsonParserDashboard = Json { ignoreUnknownKeys = true }
 
 @Composable
-fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSesion: () -> Unit) {
+fun DashboardView(
+    onVerStudyCast: () -> Unit,
+    onVerAudios: () -> Unit,
+    onVerPeers: () -> Unit,
+    onVerPerfil: () -> Unit,
+    onCerrarSesion: () -> Unit
+) {
     var mostrarFormulario by remember { mutableStateOf(false) }
     var materias by remember { mutableStateOf<List<MateriaUI>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
@@ -42,6 +52,8 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
     var materiaDetalle by remember { mutableStateOf<MateriaUI?>(null) }
     // fechas de examen por materiaId, usado para el bloqueo "EXAMEN HOY"
     var fechasPorMateria by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
+    // true si TODAS las subcarpetas de tarjetas de esa materia ya se estudiaron
+    var completoPorMateria by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
 
     val scope  = rememberCoroutineScope()
     val client = remember { HttpClient() }
@@ -66,6 +78,7 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
 
             // Carga las fechas de examen de cada materia para el bloqueo "EXAMEN HOY"
             val mapa = mutableMapOf<Int, List<String>>()
+            val progreso = mutableMapOf<Int, Boolean>()
             lista.forEach { m ->
                 try {
                     val respEx = client.get("${ApiConfig.BASE_URL}/materias/${m.id}/examenes") {
@@ -76,8 +89,16 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                 } catch (e: Exception) {
                     mapa[m.id] = emptyList()
                 }
+                try {
+                    val tarjetas = cargarTarjetasMateria(client, token, m.id)
+                    val subcarpetas = agruparPorTema(tarjetas)
+                    progreso[m.id] = subcarpetas.isNotEmpty() && subcarpetas.all { it.completado }
+                } catch (e: Exception) {
+                    progreso[m.id] = false
+                }
             }
             fechasPorMateria = mapa
+            completoPorMateria = progreso
         } catch (e: Exception) { /* mostrar mensaje de error */ }
         cargando = false
     }
@@ -150,7 +171,7 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text("StudyFlow", fontSize = 16.sp,
+                Text("EduFlow", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
                 // Avatar — muestra el correo activo
@@ -189,6 +210,43 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                 )
             }
 
+            Spacer(Modifier.height(16.dp))
+
+            // Mini-card de perfil (carrera/cuatrimestre locales del alumno)
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                    .clickable { onVerPerfil() },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.size(46.dp).clip(RoundedCornerShape(23.dp))
+                            .background(VerdePrimario),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(SesionStorage.obtenerNombre().take(1).uppercase(),
+                            fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(SesionStorage.obtenerNombre(), fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                        Text(PerfilStorage.obtenerCarrera(), fontSize = 11.sp,
+                            color = TextoSecundario, maxLines = 1)
+                    }
+                    Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFDDE8E0)) {
+                        Text("Gestionar perfil", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            color = VerdePrimario,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                    }
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
 
             // Encabezado sección materias
@@ -204,12 +262,13 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                 )
                 Spacer(Modifier.weight(1f))
                 if (materias.isNotEmpty()) {
+                    val pendientes = materias.count { !(completoPorMateria[it.id] ?: false) }
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = Color(0xFFDDE8E0)
                     ) {
                         Text(
-                            "${materias.size} Pendiente${if (materias.size > 1) "s" else ""}",
+                            "$pendientes Pendiente${if (pendientes != 1) "s" else ""}",
                             fontSize = 12.sp,
                             color = VerdePrimario,
                             fontWeight = FontWeight.SemiBold,
@@ -269,10 +328,12 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
             } else {
                 materias.forEach { materia ->
                     val bloqueada = tieneExamenHoy(fechasPorMateria[materia.id] ?: emptyList())
+                    val completa  = completoPorMateria[materia.id] ?: false
                     MateriaCard(
                         nombre = materia.nombre,
                         dificultad = materia.dificultad,
                         bloqueada = bloqueada,
+                        completa = completa,
                         onClick = {
                             // Si tiene examen hoy, no se abre el detalle (ahi se generaria
                             // contenido de IA); en su lugar se informa al alumno.
@@ -380,7 +441,7 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                 BottomNavItem(label = "StudyCast", selected = false, symbol = "▶",
                     onClick = onVerStudyCast)
                 BottomNavItem(label = "Audio", selected = false, symbol = "♪",
-                    onClick = onVerStudyCast)
+                    onClick = onVerAudios)
                 BottomNavItem(label = "Peers", selected = false, symbol = "⊙",
                     onClick = onVerPeers)
             }
@@ -481,18 +542,13 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                 ) {
                     // Logo
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFDDE8E0)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("SF", fontSize = 14.sp,
-                                fontWeight = FontWeight.Black, color = VerdePrimario)
-                        }
+                        Image(
+                            painter = painterResource(Res.drawable.eduflow_icon),
+                            contentDescription = "EduFlow",
+                            modifier = Modifier.size(36.dp)
+                        )
                         Spacer(Modifier.width(10.dp))
-                        Text("StudyFlow", fontSize = 16.sp,
+                        Text("EduFlow", fontSize = 16.sp,
                             fontWeight = FontWeight.Bold, color = VerdePrimario)
                     }
 
@@ -530,6 +586,22 @@ fun DashboardView(onVerStudyCast: () -> Unit, onVerPeers: () -> Unit, onCerrarSe
                     }
 
                     Spacer(Modifier.weight(1f))
+
+                    // Mi perfil (carrera, cuatrimestre, materias destacadas)
+                    OutlinedButton(
+                        onClick = {
+                            mostrarMenu = false
+                            onVerPerfil()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
+                        border = BorderStroke(1.dp, VerdePrimario)
+                    ) {
+                        Text("Mi perfil", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(Modifier.height(10.dp))
 
                     // Cerrar sesión
                     OutlinedButton(
@@ -703,7 +775,7 @@ fun BottomNavItem(
 }
 
 @Composable
-fun MateriaCard(nombre: String, dificultad: Int, bloqueada: Boolean = false, onClick: () -> Unit = {}) {
+fun MateriaCard(nombre: String, dificultad: Int, bloqueada: Boolean = false, completa: Boolean = false, onClick: () -> Unit = {}) {
     val colorBarra = when {
         dificultad >= 8 -> VerdePrimario
         dificultad >= 5 -> Color(0xFF8B6914)
@@ -751,8 +823,11 @@ fun MateriaCard(nombre: String, dificultad: Int, bloqueada: Boolean = false, onC
                     Text(nombre, fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold, color = TextoPrimario)
                     Spacer(Modifier.height(2.dp))
-                    Text("Sesión de estudio pendiente",
-                        fontSize = 11.sp, color = TextoSecundario)
+                    Text(
+                        if (completa) "Tarjetas estudiadas" else "Sesión de estudio pendiente",
+                        fontSize = 11.sp,
+                        color = if (completa) VerdePrimario else TextoSecundario
+                    )
                     Spacer(Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

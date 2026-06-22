@@ -43,15 +43,17 @@ fun Routing.tarjetaRoutes() {
         }
 
         val tarjetasGuardadas = pares.map { (pregunta, respuesta) ->
+            val temaFinal = req.tema?.trim()?.takeIf { it.isNotEmpty() } ?: "General"
             val id = transaction {
                 Tarjetas.insertAndGetId {
                     it[Tarjetas.materiaId] = req.materiaId
                     it[Tarjetas.examenId]  = if (req.examenId > 0) req.examenId else null
                     it[Tarjetas.pregunta]  = pregunta
                     it[Tarjetas.respuesta] = respuesta
+                    it[Tarjetas.tema]      = temaFinal
                 }.value
             }
-            TarjetaDto(id, pregunta, respuesta)
+            TarjetaDto(id, pregunta, respuesta, temaFinal, false)
         }
 
         call.respond(HttpStatusCode.Created,
@@ -69,9 +71,25 @@ fun Routing.tarjetaRoutes() {
                 .map { TarjetaDto(
                     it[Tarjetas.id].value,
                     it[Tarjetas.pregunta],
-                    it[Tarjetas.respuesta]
+                    it[Tarjetas.respuesta],
+                    it[Tarjetas.tema],
+                    it[Tarjetas.completado]
                 )}
         }
         call.respond(lista)
+    }
+
+    // PUT /tarjetas/completar - marca como estudiada toda una subcarpeta/tema
+    // Body: { "materiaId": 1, "tema": "Matrices" }
+    put("/tarjetas/completar") {
+        val req = call.receive<CompletarTemaRequest>()
+        transaction {
+            Tarjetas.update({
+                (Tarjetas.materiaId eq req.materiaId) and (Tarjetas.tema eq req.tema)
+            }) {
+                it[Tarjetas.completado] = true
+            }
+        }
+        call.respond(HttpStatusCode.OK, mapOf("ok" to true))
     }
 }

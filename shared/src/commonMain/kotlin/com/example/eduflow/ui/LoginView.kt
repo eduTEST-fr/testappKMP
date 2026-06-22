@@ -71,7 +71,7 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "StudyFlow",
+                "EduFlow",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = VerdePrimario
@@ -254,7 +254,7 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
 
                     TextButton(onClick = onIrARegistro,
                         modifier = Modifier.fillMaxWidth()) {
-                        Text("¿Nuevo en StudyFlow? Crear cuenta",
+                        Text("¿Nuevo en EduFlow? Crear cuenta",
                             color = VerdePrimario, fontSize = 13.sp)
                     }
                 }

@@ -51,7 +51,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("StudyFlow", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+            Text("EduFlow", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
             Spacer(Modifier.height(28.dp))
 
             Card(modifier = Modifier.fillMaxWidth(),

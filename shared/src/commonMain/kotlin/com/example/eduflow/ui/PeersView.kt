@@ -12,12 +12,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.eduflow.storage.SesionStorage
 
 // Vista de Red de Apoyo. Por ahora es solo navegable / visual (sin backend
 // real todavia), fiel a los mockups de Terra: header verde, mentor
 // destacado, lista de ayudantes y solicitudes recientes con filtro.
 @Composable
-fun PeersView(onVolver: () -> Unit, onVerStudyCast: () -> Unit) {
+fun PeersView(
+    onVolver: () -> Unit,
+    onVerStudyCast: () -> Unit,
+    onVerAudios: () -> Unit,
+    onVerPerfil: () -> Unit
+) {
     var filtroActivo by remember { mutableStateOf("Todas") }
     val filtros = listOf("Todas", "Cálculo", "Ecuaciones Diferenciales", "Física")
 
@@ -40,10 +46,20 @@ fun PeersView(onVolver: () -> Unit, onVerStudyCast: () -> Unit) {
                     Text("←", fontSize = 20.sp, color = VerdePrimario)
                 }
                 Spacer(Modifier.weight(1f))
-                Text("StudyFlow", fontSize = 16.sp,
+                Text("EduFlow", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(40.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFDDE8E0))
+                        .clickable { onVerPerfil() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(SesionStorage.obtenerNombre().take(1).uppercase(),
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+                }
             }
 
             Column(
@@ -287,7 +303,7 @@ fun PeersView(onVolver: () -> Unit, onVerStudyCast: () -> Unit) {
                 BottomNavItem(label = "StudyCast", selected = false,
                     symbol = "▶", onClick = onVerStudyCast)
                 BottomNavItem(label = "Audio", selected = false,
-                    symbol = "♪", onClick = onVerStudyCast)
+                    symbol = "♪", onClick = onVerAudios)
                 BottomNavItem(label = "Peers", selected = true, symbol = "⊙")
             }
         }
