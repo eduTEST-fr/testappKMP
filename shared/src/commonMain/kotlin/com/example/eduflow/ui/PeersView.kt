@@ -22,17 +22,19 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Serializable
-private data class AutorApiDto(
+internal data class AutorApiDto(
     val id: Int, val nombre: String, val carrera: String = "",
     val cuatrimestre: Int = 1, val rol: String = "ALUMNO"
 )
 
 @Serializable
-private data class SolicitudApiDto(
+internal data class SolicitudApiDto(
     val id: Int, val titulo: String, val descripcion: String, val materia: String,
     val estado: String, val tieneImagen: Boolean, val createdAt: String, val autor: AutorApiDto
 )
@@ -51,13 +53,13 @@ private val jsonParser = Json { ignoreUnknownKeys = true }
 // "Este mes" los últimos 30 días, y "Todas" devuelve la lista sin filtrar.
 private fun filtrarPorFecha(lista: List<SolicitudApiDto>, filtro: String): List<SolicitudApiDto> {
     if (filtro == "Todas") return lista
-    val tz    = kotlinx.datetime.TimeZone.currentSystemDefault()
-    val ahora = kotlinx.datetime.Clock.System.now().toLocalDateTime(tz)
+    val tz    = TimeZone.currentSystemDefault()
+    val ahora = Clock.System.now().toLocalDateTime(tz)
     val hoyStr = "${ahora.year}-${ahora.monthNumber.toString().padStart(2,'0')}-${ahora.dayOfMonth.toString().padStart(2,'0')}"
     val mesStr = "${ahora.year}-${ahora.monthNumber.toString().padStart(2,'0')}"
     // Restamos 7 días usando epochSeconds (evita dependencia de DateTimePeriod.minus con tz)
-    val hace7epoch = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
-    val hace7 = kotlinx.datetime.Instant.fromEpochMilliseconds(hace7epoch).toLocalDateTime(tz)
+    val hace7epoch = Clock.System.now().toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
+    val hace7 = Instant.fromEpochMilliseconds(hace7epoch).toLocalDateTime(tz)
     val hace7Str = "${hace7.year}-${hace7.monthNumber.toString().padStart(2,'0')}-${hace7.dayOfMonth.toString().padStart(2,'0')}"
 
     return lista.filter { sol ->
