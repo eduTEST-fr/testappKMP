@@ -4,13 +4,17 @@ import androidx.compose.runtime.*
 import com.example.eduflow.storage.SesionStorage
 import com.example.eduflow.ui.*
 
-enum class Pantalla { SPLASH, LOGIN, REGISTER, DASHBOARD, STUDYCAST, AUDIOS, PEERS, PERFIL }
+enum class Pantalla {
+    SPLASH, LOGIN, REGISTER,
+    DASHBOARD, STUDYCAST, AUDIOS,
+    PEERS, SOLICITUD_DETALLE, PERFIL
+}
 
 @Composable
 fun App() {
-    var pantalla by remember { mutableStateOf(Pantalla.SPLASH) }
-    // Pantalla a la que regresa el perfil al cerrarse (se abre desde varios lados)
-    var origenPerfil by remember { mutableStateOf(Pantalla.PEERS) }
+    var pantalla        by remember { mutableStateOf(Pantalla.SPLASH) }
+    var origenPerfil    by remember { mutableStateOf(Pantalla.PEERS) }
+    var solicitudIdActual by remember { mutableStateOf(0) }
 
     when (pantalla) {
         Pantalla.SPLASH -> SplashScreenView(
@@ -50,7 +54,12 @@ fun App() {
             onVolver       = { pantalla = Pantalla.DASHBOARD },
             onVerStudyCast = { pantalla = Pantalla.STUDYCAST },
             onVerAudios    = { pantalla = Pantalla.AUDIOS },
-            onVerPerfil    = { origenPerfil = Pantalla.PEERS; pantalla = Pantalla.PERFIL }
+            onVerPerfil    = { origenPerfil = Pantalla.PEERS; pantalla = Pantalla.PERFIL },
+            onVerDetalle   = { id -> solicitudIdActual = id; pantalla = Pantalla.SOLICITUD_DETALLE }
+        )
+        Pantalla.SOLICITUD_DETALLE -> SolicitudDetalleView(
+            solicitudId    = solicitudIdActual,
+            onVolver       = { pantalla = Pantalla.PEERS }
         )
         Pantalla.PERFIL -> PerfilView(
             onVolver = { pantalla = origenPerfil }

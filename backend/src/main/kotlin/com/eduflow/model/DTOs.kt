@@ -8,7 +8,8 @@ data class RegisterRequest(
     val matricula: String,
     val correo: String,
     val password: String,
-    val nombre: String
+    val nombre: String,
+    val codigoAsesor: String? = null   // "uptEduFlowAsesor" → asigna rol ASESOR
 )
 
 @Serializable
@@ -35,8 +36,6 @@ data class GenerarTarjetasRequest(
     val materia: String,
     val texto: String? = null,
     val imagenBase64: String? = null,
-    // Nombre corto de la subcarpeta/tema (ej. "Matrices"). Si no llega,
-    // el backend usa "General" para no romper clientes viejos.
     val tema: String? = null
 )
 
@@ -48,7 +47,6 @@ data class GenerarPodcastRequest(
     val tema: String
 )
 
-// --- DTOs de respuesta (antes eran mapOf sin tipo) ---
 @Serializable
 data class TarjetaDto(
     val id: Int,
@@ -61,7 +59,6 @@ data class TarjetaDto(
 @Serializable
 data class GenerarTarjetasResponse(val tarjetas: List<TarjetaDto>, val total: Int)
 
-// Marca todas las tarjetas de una subcarpeta (materiaId + tema) como estudiadas.
 @Serializable
 data class CompletarTemaRequest(val materiaId: Int, val tema: String)
 
@@ -70,7 +67,7 @@ data class PodcastDto(
     val id: Int,
     val titulo: String,
     val guion: String,
-    val audioUrl: String,  // ruta relativa, ej: /podcasts/audio/7 -- ya NO es base64
+    val audioUrl: String,
     val tema: String = "General",
     val completado: Boolean = false
 )
@@ -82,9 +79,8 @@ data class ActualizarPerfilRequest(
     val carrera: String? = null,
     val cuatrimestre: Int? = null,
     val sobreMi: String? = null,
-    val materiasDestaca: String? = null, // CSV: "Algebra,Calculo,POO"
+    val materiasDestaca: String? = null,
     val avatarId: String? = null,
-    // Solo aplica si el usuario es ASESOR:
     val grado: String? = null,
     val especialidad: String? = null,
     val permiteAsesoria: Boolean? = null
@@ -123,7 +119,7 @@ data class ResponderSolicitudRequest(
 data class CalificarMentorRequest(
     val asesorId: Int,
     val solicitudId: Int,
-    val estrellas: Int // 1..5
+    val estrellas: Int
 )
 
 @Serializable

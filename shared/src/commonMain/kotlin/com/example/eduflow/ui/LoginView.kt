@@ -212,9 +212,11 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
                                         .find(resp)?.groupValues?.get(1) ?: ""
                                     val nom = Regex(""""nombre":"([^"]+)"""")
                                         .find(resp)?.groupValues?.get(1) ?: ""
+                                    val rolResp = Regex(""""rol":"([^"]+)"""")
+                                        .find(resp)?.groupValues?.get(1) ?: "ALUMNO"
 
                                     if (token.isNotEmpty()) {
-                                        SesionStorage.guardarToken(token, nom)
+                                        SesionStorage.guardarToken(token, nom, rolResp)
                                         onLoginExitoso()
                                     } else {
                                         val err = Regex(""""error":"([^"]+)"""")
