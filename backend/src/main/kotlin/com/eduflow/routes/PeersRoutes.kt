@@ -11,22 +11,18 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
 fun Routing.peersRoutes() {
 
-    // GET /peers/solicitudes?materia=Algebra - solicitudes abiertas, mas recientes primero
+    // GET /peers/solicitudes — solicitudes abiertas, más recientes primero
     get("/peers/solicitudes") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
             return@get
         }
-        val materia = call.request.queryParameters["materia"]
         val lista = transaction {
-            var query = PeersSolicitudes
+            PeersSolicitudes
                 .innerJoin(Usuarios, { PeersSolicitudes.autorId }, { Usuarios.id })
                 .selectAll()
                 .where { PeersSolicitudes.estado eq "ABIERTA" }
-            if (!materia.isNullOrBlank()) {
-                query = query.andWhere { PeersSolicitudes.materia eq materia }
-            }
-            query.orderBy(PeersSolicitudes.createdAt, SortOrder.DESC)
+                .orderBy(PeersSolicitudes.createdAt, SortOrder.DESC)
                 .limit(30)
                 .map {
                     SolicitudDto(
@@ -50,7 +46,7 @@ fun Routing.peersRoutes() {
         call.respond(lista)
     }
 
-    // POST /peers/solicitudes - crear nueva solicitud (alumno o asesor)
+    // POST /peers/solicitudes — crear nueva solicitud
     post("/peers/solicitudes") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -69,26 +65,36 @@ fun Routing.peersRoutes() {
         call.respond(HttpStatusCode.Created, mapOf("id" to id, "mensaje" to "Solicitud creada"))
     }
 
-    // POST /peers/solicitudes/{id}/cerrar - el creador cierra su propia solicitud
+    // POST /peers/solicitudes/{id}/cerrar
+    // ALUMNO: solo cierra las propias. ASESOR/ADMIN: cierra cualquiera.
     post("/peers/solicitudes/{id}/cerrar") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
             return@post
         }
+        val rol = obtenerRol(call)
         val solicitudId = call.parameters["id"]?.toIntOrNull() ?: run {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
             return@post
         }
         val updated = transaction {
-            PeersSolicitudes.update({
-                (PeersSolicitudes.id eq solicitudId) and (PeersSolicitudes.autorId eq userId)
-            }) { it[estado] = "CERRADA" }
+            if (rol == "ASESOR" || rol == "ADMIN") {
+                PeersSolicitudes.update({ PeersSolicitudes.id eq solicitudId }) {
+                    it[estado] = "CERRADA"
+                }
+            } else {
+                PeersSolicitudes.update({
+                    (PeersSolicitudes.id eq solicitudId) and (PeersSolicitudes.autorId eq userId)
+                }) { it[estado] = "CERRADA" }
+            }
         }
-        if (updated == 0) call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No autorizado"))
-        else call.respond(mapOf("mensaje" to "Solicitud cerrada"))
+        if (updated == 0)
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No autorizado"))
+        else
+            call.respond(mapOf("mensaje" to "Solicitud cerrada"))
     }
 
-    // DELETE /peers/solicitudes/{id} - eliminar solicitud propia
+    // DELETE /peers/solicitudes/{id} — eliminar solicitud propia
     delete("/peers/solicitudes/{id}") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -103,11 +109,13 @@ fun Routing.peersRoutes() {
                 (PeersSolicitudes.id eq solicitudId) and (PeersSolicitudes.autorId eq userId)
             }
         }
-        if (deleted == 0) call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No autorizado"))
-        else call.respond(mapOf("mensaje" to "Solicitud eliminada"))
+        if (deleted == 0)
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No autorizado"))
+        else
+            call.respond(mapOf("mensaje" to "Solicitud eliminada"))
     }
 
-    // GET /peers/solicitudes/{id} - detalle + respuestas
+    // GET /peers/solicitudes/{id} — detalle + respuestas
     get("/peers/solicitudes/{id}") {
         val solicitudId = call.parameters["id"]?.toIntOrNull() ?: run {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
@@ -151,7 +159,8 @@ fun Routing.peersRoutes() {
                 autor = AutorDto(
                     id = sol[Usuarios.id].value,
                     nombre = sol[Usuarios.nombre],
-                    cuatrimestre = sol[Usuarios.cuatrimestre]
+                    cuatrimestre = sol[Usuarios.cuatrimestre],
+                    rol = sol[Usuarios.rol]
                 ),
                 respuestas = respuestas
             )
@@ -160,9 +169,8 @@ fun Routing.peersRoutes() {
         else call.respond(detalle)
     }
 
-    // POST /peers/solicitudes/{id}/responder - responde una solicitud.
-    // Si quien responde es ALUMNO, su cuatrimestre debe ser >= al del autor.
-    // Los ASESOR/ADMIN no tienen esa restriccion.
+    // POST /peers/solicitudes/{id}/responder
+    // ALUMNO: cuatrimestre >= autor. ASESOR/ADMIN: sin restricción.
     post("/peers/solicitudes/{id}/responder") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -205,11 +213,10 @@ fun Routing.peersRoutes() {
         call.respond(HttpStatusCode.Created, mapOf("id" to id, "mensaje" to "Respuesta publicada"))
     }
 
-    // GET /peers/mentores/destacados?materia=Algebra - top 10 por promedio de estrellas
+    // GET /peers/mentores/destacados
     get("/peers/mentores/destacados") {
-        val materiaFiltro = call.request.queryParameters["materia"]
         val mentores = transaction {
-            var query = PeersCalificaciones
+            PeersCalificaciones
                 .innerJoin(Usuarios, { PeersCalificaciones.asesorId }, { Usuarios.id })
                 .select(
                     PeersCalificaciones.asesorId,
@@ -218,10 +225,7 @@ fun Routing.peersRoutes() {
                     PeersCalificaciones.estrellas.avg(),
                     PeersCalificaciones.asesorId.count()
                 )
-            if (!materiaFiltro.isNullOrBlank()) {
-                query = query.andWhere { Usuarios.materiasDestaca like "%$materiaFiltro%" }
-            }
-            query.groupBy(PeersCalificaciones.asesorId)
+                .groupBy(PeersCalificaciones.asesorId)
                 .orderBy(PeersCalificaciones.estrellas.avg(), SortOrder.DESC)
                 .limit(10)
                 .map { row ->
@@ -246,7 +250,7 @@ fun Routing.peersRoutes() {
         call.respond(mentores)
     }
 
-    // POST /peers/calificar - calificar a un mentor (1-5) tras recibir ayuda
+    // POST /peers/calificar — calificar a un mentor (1-5 estrellas)
     post("/peers/calificar") {
         val alumnoId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -258,7 +262,6 @@ fun Routing.peersRoutes() {
             return@post
         }
         transaction {
-            // Una calificacion por alumno+solicitud: si ya existia, se reemplaza.
             PeersCalificaciones.deleteWhere {
                 (PeersCalificaciones.alumnoId eq alumnoId) and
                     (PeersCalificaciones.solicitudId eq req.solicitudId)
@@ -273,7 +276,7 @@ fun Routing.peersRoutes() {
         call.respond(mapOf("mensaje" to "Calificación registrada"))
     }
 
-    // GET /peers/perfil/{id} - perfil publico de cualquier usuario
+    // GET /peers/perfil/{id}
     get("/peers/perfil/{id}") {
         val targetId = call.parameters["id"]?.toIntOrNull() ?: run {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
@@ -302,7 +305,7 @@ fun Routing.peersRoutes() {
         else call.respond(perfil)
     }
 
-    // GET /peers/perfil - perfil propio (el del usuario autenticado)
+    // GET /peers/perfil
     get("/peers/perfil") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -331,8 +334,7 @@ fun Routing.peersRoutes() {
         else call.respond(perfil)
     }
 
-    // PUT /peers/perfil - actualizar el perfil propio (carrera, cuatrimestre,
-    // sobre mi, materias que destaca, avatar y, si es asesor, su info extra)
+    // PUT /peers/perfil
     put("/peers/perfil") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -340,7 +342,6 @@ fun Routing.peersRoutes() {
         }
         val rolUsuario = obtenerRol(call)
         val req = call.receive<ActualizarPerfilRequest>()
-
         transaction {
             Usuarios.update({ Usuarios.id eq userId }) {
                 req.carrera?.let { v -> it[carrera] = v }
@@ -349,7 +350,6 @@ fun Routing.peersRoutes() {
                 req.materiasDestaca?.let { v -> it[materiasDestaca] = v }
                 req.avatarId?.let { v -> it[avatarId] = v }
             }
-
             if (rolUsuario == "ASESOR" &&
                 (req.grado != null || req.especialidad != null || req.permiteAsesoria != null)) {
                 val existe = AsesoresPerfil.selectAll()

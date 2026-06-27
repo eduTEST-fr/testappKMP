@@ -3,8 +3,6 @@ package com.example.eduflow.ui
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +24,8 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable
 internal data class AutorApiDto(
@@ -46,30 +46,31 @@ private data class MentorApiDto(
     val promedio: Double, val totalCalif: Int, val permiteAsesoria: Boolean
 )
 
-private val jsonParser = Json { ignoreUnknownKeys = true }
+@Serializable
+private data class AdminSolDto(
+    val id: Int, val titulo: String, val estado: String,
+    val materia: String = "", val createdAt: String = "", val autor: String = ""
+)
 
-// Filtra una lista de solicitudes por rango de fecha según la etiqueta del filtro activo.
-// "Hoy" muestra solo las del día en curso, "Esta semana" las de los últimos 7 días,
-// "Este mes" los últimos 30 días, y "Todas" devuelve la lista sin filtrar.
+private val jsonPeers = Json { ignoreUnknownKeys = true }
+
 private fun filtrarPorFecha(lista: List<SolicitudApiDto>, filtro: String): List<SolicitudApiDto> {
     if (filtro == "Todas") return lista
     val tz    = TimeZone.currentSystemDefault()
     val ahora = Clock.System.now().toLocalDateTime(tz)
     val hoyStr = "${ahora.year}-${ahora.monthNumber.toString().padStart(2,'0')}-${ahora.dayOfMonth.toString().padStart(2,'0')}"
     val mesStr = "${ahora.year}-${ahora.monthNumber.toString().padStart(2,'0')}"
-    // Restamos 7 días usando epochSeconds (evita dependencia de DateTimePeriod.minus con tz)
     val hace7epoch = Clock.System.now().toEpochMilliseconds() - 7L * 24 * 60 * 60 * 1000
     val hace7 = Instant.fromEpochMilliseconds(hace7epoch).toLocalDateTime(tz)
     val hace7Str = "${hace7.year}-${hace7.monthNumber.toString().padStart(2,'0')}-${hace7.dayOfMonth.toString().padStart(2,'0')}"
-
     return lista.filter { sol ->
         try {
-            val fechaSol = sol.createdAt.substring(0, 10)
+            val f = sol.createdAt.substring(0, 10)
             when (filtro) {
-                "Hoy"         -> fechaSol == hoyStr
-                "Esta semana" -> fechaSol >= hace7Str
-                "Este mes"    -> fechaSol.startsWith(mesStr)
-                else          -> true
+                "Hoy"         -> f == hoyStr
+                "Esta semana" -> f >= hace7Str
+                "Este mes"    -> f.startsWith(mesStr)
+                else -> true
             }
         } catch (e: Exception) { true }
     }
@@ -81,13 +82,13 @@ fun PeersView(
     onVerStudyCast: () -> Unit,
     onVerAudios: () -> Unit,
     onVerPerfil: () -> Unit,
+    onCerrarSesion: () -> Unit,
     onVerDetalle: (Int) -> Unit
 ) {
     val rol = SesionStorage.obtenerRol()
-
     when (rol) {
-        "ADMIN"  -> PeersAdminView(onVolver = onVolver, onVerDetalle = onVerDetalle)
-        "ASESOR" -> PeersAsesorView(onVolver = onVolver, onVerDetalle = onVerDetalle)
+        "ADMIN"  -> PeersAdminView(onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle)
+        "ASESOR" -> PeersAsesorView(onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle)
         else     -> PeersAlumnoView(
             onVolver = onVolver, onVerStudyCast = onVerStudyCast,
             onVerAudios = onVerAudios, onVerPerfil = onVerPerfil,
@@ -96,15 +97,11 @@ fun PeersView(
     }
 }
 
-// ─────────────────────────────────────────────
-//  VISTA ALUMNO — feed completo + crear solicitud
-// ─────────────────────────────────────────────
+// ── VISTA ALUMNO ──────────────────────────────────────────────────────
 @Composable
 private fun PeersAlumnoView(
-    onVolver: () -> Unit,
-    onVerStudyCast: () -> Unit,
-    onVerAudios: () -> Unit,
-    onVerPerfil: () -> Unit,
+    onVolver: () -> Unit, onVerStudyCast: () -> Unit,
+    onVerAudios: () -> Unit, onVerPerfil: () -> Unit,
     onVerDetalle: (Int) -> Unit
 ) {
     val scope  = rememberCoroutineScope()
@@ -112,26 +109,23 @@ private fun PeersAlumnoView(
     val token  = SesionStorage.obtenerToken() ?: ""
 
     val filtros = listOf("Todas", "Hoy", "Esta semana", "Este mes")
-    var filtroActivo by remember { mutableStateOf("Todas") }
-
-    var mentores    by remember { mutableStateOf<List<MentorApiDto>>(emptyList()) }
-    var solicitudes by remember { mutableStateOf<List<SolicitudApiDto>>(emptyList()) }
-    var cargando    by remember { mutableStateOf(true) }
-    var mostrarNueva by remember { mutableStateOf(false) }
-    var generando    by remember { mutableStateOf(false) }
-    var errorMsg     by remember { mutableStateOf("") }
+    var filtroActivo  by remember { mutableStateOf("Todas") }
+    var mentores      by remember { mutableStateOf<List<MentorApiDto>>(emptyList()) }
+    var solicitudes   by remember { mutableStateOf<List<SolicitudApiDto>>(emptyList()) }
+    var cargando      by remember { mutableStateOf(true) }
+    var mostrarNueva  by remember { mutableStateOf(false) }
+    var generando     by remember { mutableStateOf(false) }
+    var errorMsg      by remember { mutableStateOf("") }
 
     suspend fun cargar() {
         cargando = true
         try {
-            val respMentores = client.get("${ApiConfig.BASE_URL}/peers/mentores/destacados")
-                .bodyAsText()
-            mentores = jsonParser.decodeFromString(respMentores)
-
-            val respSolicitudes = client.get("${ApiConfig.BASE_URL}/peers/solicitudes") {
+            val rm = client.get("${ApiConfig.BASE_URL}/peers/mentores/destacados").bodyAsText()
+            mentores = jsonPeers.decodeFromString(rm)
+            val rs = client.get("${ApiConfig.BASE_URL}/peers/solicitudes") {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            solicitudes = jsonParser.decodeFromString(respSolicitudes)
+            solicitudes = jsonPeers.decodeFromString(rs)
         } catch (e: Exception) { errorMsg = "No se pudo cargar la Red de Apoyo." }
         cargando = false
     }
@@ -140,9 +134,8 @@ private fun PeersAlumnoView(
 
     if (mostrarNueva) {
         NuevaSolicitudDialog(
-            generando = generando,
-            errorMsg = errorMsg,
-            onCerrar = { mostrarNueva = false; errorMsg = "" },
+            generando = generando, errorMsg = errorMsg,
+            onCerrar  = { mostrarNueva = false; errorMsg = "" },
             onGuardar = { titulo, descripcion, materia ->
                 generando = true; errorMsg = ""
                 scope.launch {
@@ -150,15 +143,12 @@ private fun PeersAlumnoView(
                         client.post("${ApiConfig.BASE_URL}/peers/solicitudes") {
                             header("Authorization", "Bearer $token")
                             contentType(ContentType.Application.Json)
-                            setBody(
-                                "{\"titulo\":\"${escaparJson(titulo)}\"," +
+                            setBody("{\"titulo\":\"${escaparJson(titulo)}\"," +
                                 "\"descripcion\":\"${escaparJson(descripcion)}\"," +
-                                "\"materia\":\"${escaparJson(materia)}\"}"
-                            )
+                                "\"materia\":\"${escaparJson(materia)}\"}")
                         }
-                        mostrarNueva = false
-                        cargar()
-                    } catch (e: Exception) { errorMsg = "Error al publicar. Revisa tu conexión." }
+                        mostrarNueva = false; cargar()
+                    } catch (e: Exception) { errorMsg = "Error al publicar." }
                     generando = false
                 }
             }
@@ -172,7 +162,6 @@ private fun PeersAlumnoView(
         .windowInsetsPadding(WindowInsets.systemBars)) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Top bar
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
@@ -198,13 +187,12 @@ private fun PeersAlumnoView(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp).padding(bottom = 90.dp)) {
 
-                // Header verde
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = VerdePrimario)) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text("Tu Red de Apoyo Académico", fontSize = 20.sp,
                             fontWeight = FontWeight.Bold, color = Color.White, lineHeight = 26.sp)
-                        Text("Conecta con mentores expertos y resuelve tus dudas en comunidad.",
+                        Text("Conecta con mentores y resuelve tus dudas en comunidad.",
                             fontSize = 13.sp, color = Color.White.copy(0.85f),
                             lineHeight = 19.sp, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
                         Surface(modifier = Modifier.fillMaxWidth().clickable { mostrarNueva = true },
@@ -218,14 +206,13 @@ private fun PeersAlumnoView(
                 }
 
                 Spacer(Modifier.height(22.dp))
-
                 Text("Mentores Destacados", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = TextoPrimario,
                     modifier = Modifier.padding(bottom = 12.dp))
 
                 if (mentores.isEmpty()) {
-                    Text("Aún no hay mentores calificados.", fontSize = 12.sp, color = TextoSecundario,
-                        modifier = Modifier.padding(bottom = 8.dp))
+                    Text("Aún no hay mentores calificados.", fontSize = 12.sp,
+                        color = TextoSecundario, modifier = Modifier.padding(bottom = 8.dp))
                 } else {
                     mentores.take(1).forEach { MentorDestacadoCard(it) }
                     Spacer(Modifier.height(10.dp))
@@ -233,8 +220,7 @@ private fun PeersAlumnoView(
                 }
 
                 Spacer(Modifier.height(22.dp))
-
-                Text("Filtrar solicitudes", fontSize = 13.sp,
+                Text("Filtrar por fecha", fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold, color = TextoSecundario,
                     modifier = Modifier.padding(bottom = 10.dp))
 
@@ -251,27 +237,23 @@ private fun PeersAlumnoView(
                 }
 
                 Spacer(Modifier.height(18.dp))
-
                 Text("Solicitudes Recientes", fontSize = 15.sp,
                     fontWeight = FontWeight.Bold, color = TextoPrimario,
                     modifier = Modifier.padding(bottom = 10.dp))
 
-                if (errorMsg.isNotEmpty()) {
+                if (errorMsg.isNotEmpty())
                     Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 10.dp))
-                }
 
-                if (solicitudesFiltradas.isEmpty()) {
+                if (solicitudesFiltradas.isEmpty())
                     Text("No hay solicitudes en este período.", fontSize = 12.sp, color = TextoSecundario)
-                } else {
+                else
                     solicitudesFiltradas.forEach { sol ->
                         SolicitudCard(sol = sol, onVerDetalle = onVerDetalle)
                         Spacer(Modifier.height(10.dp))
                     }
-                }
 
                 Spacer(Modifier.height(10.dp))
-
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFEFEAE0))) {
                     Column(modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -297,20 +279,18 @@ private fun PeersAlumnoView(
             color = Beige, shadowElevation = 8.dp) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly) {
-                BottomNavItem(label = "Dashboard", selected = false, symbol = "⊞", onClick = onVolver)
-                BottomNavItem(label = "StudyCast", selected = false, symbol = "▶", onClick = onVerStudyCast)
-                BottomNavItem(label = "Audio", selected = false, symbol = "♪", onClick = onVerAudios)
-                BottomNavItem(label = "Peers", selected = true, symbol = "⊙")
+                BottomNavItem("Inicio",     false, "⊞", onVolver)
+                BottomNavItem("StudyCast",  false, "▶", onVerStudyCast)
+                BottomNavItem("Audio",      false, "♪", onVerAudios)
+                BottomNavItem("Pares",      true,  "⊙")
             }
         }
     }
 }
 
-// ─────────────────────────────────────────────
-//  VISTA ASESOR — gestión de solicitudes
-// ─────────────────────────────────────────────
+// ── VISTA ASESOR ──────────────────────────────────────────────────────
 @Composable
-private fun PeersAsesorView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
+private fun PeersAsesorView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> Unit) {
     val client = remember { HttpClient() }
     val token  = SesionStorage.obtenerToken() ?: ""
 
@@ -324,7 +304,7 @@ private fun PeersAsesorView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
             val resp = client.get("${ApiConfig.BASE_URL}/peers/solicitudes") {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            solicitudes = jsonParser.decodeFromString(resp)
+            solicitudes = jsonPeers.decodeFromString(resp)
         } catch (e: Exception) { errorMsg = "Error al cargar solicitudes." }
         cargando = false
     }
@@ -335,15 +315,15 @@ private fun PeersAsesorView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
         .windowInsetsPadding(WindowInsets.systemBars)) {
         Column(modifier = Modifier.fillMaxSize()) {
 
+            // Barra superior con cerrar sesión
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
+                Text("EduFlow — Asesor", fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold, color = VerdePrimario,
+                    modifier = Modifier.weight(1f))
+                TextButton(onClick = onCerrarSesion, contentPadding = PaddingValues(0.dp)) {
+                    Text("Salir", fontSize = 13.sp, color = VerdePrimario)
                 }
-                Spacer(Modifier.weight(1f))
-                Text("Panel Asesor", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
-                Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(40.dp))
             }
 
             if (cargando) {
@@ -360,9 +340,9 @@ private fun PeersAsesorView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = VerdePrimario)) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Solicitudes abiertas", fontSize = 16.sp,
+                        Text("Panel Asesor", fontSize = 16.sp,
                             fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Pulsa una solicitud para responderla o cerrarla.",
+                        Text("${solicitudes.size} solicitudes abiertas. Pulsa una para responder o cerrarla.",
                             fontSize = 12.sp, color = Color.White.copy(0.85f),
                             modifier = Modifier.padding(top = 4.dp))
                     }
@@ -370,42 +350,31 @@ private fun PeersAsesorView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
 
                 Spacer(Modifier.height(16.dp))
 
-                if (errorMsg.isNotEmpty()) {
+                if (errorMsg.isNotEmpty())
                     Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 10.dp))
-                }
 
-                if (solicitudes.isEmpty()) {
+                if (solicitudes.isEmpty())
                     Text("No hay solicitudes abiertas.", fontSize = 13.sp, color = TextoSecundario)
-                } else {
+                else
                     solicitudes.forEach { sol ->
                         SolicitudCard(sol = sol, onVerDetalle = onVerDetalle)
                         Spacer(Modifier.height(10.dp))
                     }
-                }
             }
         }
     }
 }
 
-@Serializable
-private data class AdminSolDto(
-    val id: Int, val titulo: String, val estado: String,
-    val materia: String = "", val createdAt: String = "", val autor: String = ""
-)
-
-// ─────────────────────────────────────────────
-//  VISTA ADMIN — todas las solicitudes + moderar
-// ─────────────────────────────────────────────
+// ── VISTA ADMIN ───────────────────────────────────────────────────────
 @Composable
-private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
-    val scope  = rememberCoroutineScope()
+private fun PeersAdminView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> Unit) {
     val client = remember { HttpClient() }
     val token  = SesionStorage.obtenerToken() ?: ""
 
+    var adminSols by remember { mutableStateOf<List<AdminSolDto>>(emptyList()) }
     var cargando  by remember { mutableStateOf(true) }
     var errorMsg  by remember { mutableStateOf("") }
-    var adminSols by remember { mutableStateOf<List<AdminSolDto>>(emptyList()) }
 
     suspend fun cargar() {
         cargando = true
@@ -413,7 +382,7 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
             val resp = client.get("${ApiConfig.BASE_URL}/admin/peers/solicitudes") {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
-            adminSols = jsonParser.decodeFromString(resp)
+            adminSols = jsonPeers.decodeFromString(resp)
         } catch (e: Exception) { errorMsg = "Error al cargar." }
         cargando = false
     }
@@ -426,13 +395,12 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
 
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
+                Text("EduFlow — Administrador", fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold, color = VerdePrimario,
+                    modifier = Modifier.weight(1f))
+                TextButton(onClick = onCerrarSesion, contentPadding = PaddingValues(0.dp)) {
+                    Text("Salir", fontSize = 13.sp, color = VerdePrimario)
                 }
-                Spacer(Modifier.weight(1f))
-                Text("Panel Admin", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
-                Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(40.dp))
             }
 
             if (cargando) {
@@ -449,7 +417,7 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = VerdePrimario)) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Moderación de contenido", fontSize = 16.sp,
+                        Text("Panel de Moderación", fontSize = 16.sp,
                             fontWeight = FontWeight.Bold, color = Color.White)
                         Text("${adminSols.size} solicitudes en total. Pulsa una para gestionarla.",
                             fontSize = 12.sp, color = Color.White.copy(0.85f),
@@ -459,10 +427,9 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
 
                 Spacer(Modifier.height(16.dp))
 
-                if (errorMsg.isNotEmpty()) {
+                if (errorMsg.isNotEmpty())
                     Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 10.dp))
-                }
 
                 adminSols.forEach { sol ->
                     Card(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
@@ -477,6 +444,8 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
                                     fontWeight = FontWeight.SemiBold, color = TextoPrimario)
                                 Text("Autor: ${sol.autor}", fontSize = 11.sp,
                                     color = TextoSecundario, modifier = Modifier.padding(top = 2.dp))
+                                if (sol.materia.isNotBlank())
+                                    Text(sol.materia, fontSize = 11.sp, color = VerdePrimario)
                             }
                             Surface(shape = RoundedCornerShape(8.dp),
                                 color = if (sol.estado == "ABIERTA") Color(0xFFDDE8E0)
@@ -493,10 +462,7 @@ private fun PeersAdminView(onVolver: () -> Unit, onVerDetalle: (Int) -> Unit) {
     }
 }
 
-// ─────────────────────────────────────────────
-//  Componentes compartidos
-// ─────────────────────────────────────────────
-
+// ── Componentes compartidos ───────────────────────────────────────────
 @Composable
 private fun MentorDestacadoCard(mentor: MentorApiDto) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
@@ -517,10 +483,9 @@ private fun MentorDestacadoCard(mentor: MentorApiDto) {
                     Text(mentor.nombre, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                         color = TextoPrimario, modifier = Modifier.padding(top = 6.dp))
                 }
-                if (mentor.totalCalif > 0) {
-                    Text("★ ${(mentor.promedio * 10).toInt() / 10.0}", fontSize = 12.sp,
+                if (mentor.totalCalif > 0)
+                    Text("★ ${"%.1f".format(mentor.promedio)}", fontSize = 12.sp,
                         fontWeight = FontWeight.Bold, color = Color(0xFF8B6914))
-                }
             }
             Text("${mentor.carrera} · ${mentor.cuatrimestre}° cuatrimestre",
                 fontSize = 12.sp, color = TextoSecundario, lineHeight = 18.sp,
@@ -552,10 +517,9 @@ private fun MentorCompactoCard(mentor: MentorApiDto) {
                 Text(mentor.nombre, fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold, color = TextoPrimario)
             }
-            if (mentor.totalCalif > 0) {
-                Text("★ ${(mentor.promedio * 10).toInt() / 10.0}", fontSize = 11.sp,
+            if (mentor.totalCalif > 0)
+                Text("★ ${"%.1f".format(mentor.promedio)}", fontSize = 11.sp,
                     color = Color(0xFF8B6914), fontWeight = FontWeight.SemiBold)
-            }
         }
     }
 }
@@ -582,10 +546,9 @@ internal fun SolicitudCard(sol: SolicitudApiDto, onVerDetalle: (Int) -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(sol.titulo, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                         color = TextoPrimario, lineHeight = 18.sp)
-                    if (sol.materia.isNotBlank()) {
+                    if (sol.materia.isNotBlank())
                         Text(sol.materia, fontSize = 11.sp, color = VerdePrimario,
                             modifier = Modifier.padding(top = 2.dp))
-                    }
                 }
             }
             Text(sol.descripcion, fontSize = 12.sp, color = TextoSecundario, lineHeight = 17.sp,
@@ -593,8 +556,8 @@ internal fun SolicitudCard(sol: SolicitudApiDto, onVerDetalle: (Int) -> Unit) {
             Row(modifier = Modifier.fillMaxWidth().padding(start = 42.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(sol.autor.nombre, fontSize = 11.sp, color = TextoSecundario,
-                    fontWeight = FontWeight.SemiBold)
+                Text(sol.autor.nombre, fontSize = 11.sp,
+                    color = TextoSecundario, fontWeight = FontWeight.SemiBold)
                 Surface(shape = RoundedCornerShape(8.dp), color = VerdePrimario,
                     modifier = Modifier.clickable { onVerDetalle(sol.id) }) {
                     Text("Ver detalle", fontSize = 11.sp, color = Color.White,
@@ -608,8 +571,7 @@ internal fun SolicitudCard(sol: SolicitudApiDto, onVerDetalle: (Int) -> Unit) {
 
 @Composable
 private fun NuevaSolicitudDialog(
-    generando: Boolean,
-    errorMsg: String,
+    generando: Boolean, errorMsg: String,
     onCerrar: () -> Unit,
     onGuardar: (titulo: String, descripcion: String, materia: String) -> Unit
 ) {
@@ -626,11 +588,11 @@ private fun NuevaSolicitudDialog(
                     Text("←", fontSize = 20.sp, color = VerdePrimario)
                 }
                 Spacer(Modifier.weight(1f))
-                Text("Nueva Solicitud", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+                Text("Nueva Solicitud", fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.width(40.dp))
             }
-
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -652,22 +614,15 @@ private fun NuevaSolicitudDialog(
                                 unfocusedBorderColor = Color(0xFFE0E0E0)
                             )
                         )
-
-                        if (errorMsg.isNotEmpty()) {
+                        if (errorMsg.isNotEmpty())
                             Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
                                 modifier = Modifier.padding(top = 8.dp))
-                        }
-
                         Spacer(Modifier.height(18.dp))
-
                         Button(
-                            onClick = {
-                                if (titulo.isBlank() || descripcion.isBlank()) return@Button
-                                onGuardar(titulo.trim(), descripcion.trim(), materia.trim())
-                            },
+                            onClick = { if (titulo.isNotBlank() && descripcion.isNotBlank())
+                                onGuardar(titulo.trim(), descripcion.trim(), materia.trim()) },
                             modifier = Modifier.fillMaxWidth().height(50.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            enabled = !generando,
+                            shape = RoundedCornerShape(12.dp), enabled = !generando,
                             colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)
                         ) {
                             if (generando)
