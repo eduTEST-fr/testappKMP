@@ -372,4 +372,44 @@ fun Routing.peersRoutes() {
         }
         call.respond(mapOf("mensaje" to "Perfil actualizado"))
     }
+
+    // GET /peers/asesores — TODOS los asesores ordenados por calificación promedio
+    get("/peers/asesores") {
+        val asesores = transaction {
+            val subquery = PeersCalificaciones
+                .select(PeersCalificaciones.asesorId,
+                    PeersCalificaciones.estrellas.avg().alias("prom"),
+                    PeersCalificaciones.asesorId.count().alias("total"))
+                .groupBy(PeersCalificaciones.asesorId)
+                .alias("califs")
+
+            Usuarios.selectAll()
+                .where { Usuarios.rol eq "ASESOR" }
+                .orderBy(Usuarios.nombre, SortOrder.ASC)
+                .map { u ->
+                    val uid = u[Usuarios.id].value
+                    val calif = PeersCalificaciones
+                        .selectAll().where { PeersCalificaciones.asesorId eq uid }
+                    val prom = calif.mapNotNull { it[PeersCalificaciones.estrellas].toDouble() }
+                        .let { if (it.isEmpty()) 0.0 else it.average() }
+                    val total = calif.count().toInt()
+                    val ap = AsesoresPerfil.selectAll()
+                        .where { AsesoresPerfil.usuarioId eq uid }.firstOrNull()
+                    MentorDto(
+                        id = uid,
+                        nombre = u[Usuarios.nombre],
+                        carrera = u[Usuarios.carrera] ?: "",
+                        cuatrimestre = u[Usuarios.cuatrimestre],
+                        materiasDestaca = u[Usuarios.materiasDestaca] ?: "",
+                        rol = u[Usuarios.rol],
+                        avatarId = u[Usuarios.avatarId],
+                        promedio = prom,
+                        totalCalif = total,
+                        permiteAsesoria = ap?.get(AsesoresPerfil.permiteAsesoria) ?: false
+                    )
+                }
+                .sortedByDescending { it.promedio }
+        }
+        call.respond(asesores)
+    }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -120,7 +121,7 @@ private fun PeersAlumnoView(
     suspend fun cargar() {
         cargando = true
         try {
-            val rm = client.get("${ApiConfig.BASE_URL}/peers/mentores/destacados").bodyAsText()
+            val rm = client.get("${ApiConfig.BASE_URL}/peers/asesores").bodyAsText()
             mentores = jsonPeers.decodeFromString(rm)
             val rs = client.get("${ApiConfig.BASE_URL}/peers/solicitudes") {
                 header("Authorization", "Bearer $token")
@@ -206,17 +207,25 @@ private fun PeersAlumnoView(
                 }
 
                 Spacer(Modifier.height(22.dp))
-                Text("Mentores Destacados", fontSize = 16.sp,
+                Text("Asesores Destacados", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = TextoPrimario,
                     modifier = Modifier.padding(bottom = 12.dp))
 
                 if (mentores.isEmpty()) {
-                    Text("Aún no hay mentores calificados.", fontSize = 12.sp,
+                    Text("Aún no hay asesores registrados.", fontSize = 12.sp,
                         color = TextoSecundario, modifier = Modifier.padding(bottom = 8.dp))
                 } else {
                     mentores.take(1).forEach { MentorDestacadoCard(it) }
                     Spacer(Modifier.height(10.dp))
-                    mentores.drop(1).take(3).forEach { MentorCompactoCard(it); Spacer(Modifier.height(8.dp)) }
+                    mentores.drop(1).take(2).forEach { MentorCompactoCard(it); Spacer(Modifier.height(8.dp)) }
+                    Spacer(Modifier.height(4.dp))
+                    Surface(modifier = Modifier.fillMaxWidth().clickable { /* TODO EP10: navegar a AsesoresListaView */ },
+                        shape = RoundedCornerShape(10.dp), color = Color(0xFFDDE8E0)) {
+                        Text("Ver todos los asesores (${mentores.size})", fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold, color = VerdePrimario,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
+                    }
                 }
 
                 Spacer(Modifier.height(22.dp))
@@ -311,19 +320,27 @@ private fun PeersAsesorView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> U
 
     LaunchedEffect(Unit) { cargar() }
 
+    var mostrarMenu by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize().background(Beige)
         .windowInsetsPadding(WindowInsets.systemBars)) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Barra superior con cerrar sesión
+            // Barra superior con hamburger igual que Dashboard
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Text("EduFlow — Asesor", fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold, color = VerdePrimario,
-                    modifier = Modifier.weight(1f))
-                TextButton(onClick = onCerrarSesion, contentPadding = PaddingValues(0.dp)) {
-                    Text("Salir", fontSize = 13.sp, color = VerdePrimario)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.clickable { mostrarMenu = true }) {
+                    repeat(3) {
+                        Box(Modifier.width(22.dp).height(2.dp)
+                            .background(VerdePrimario, RoundedCornerShape(1.dp)))
+                    }
                 }
+                Spacer(Modifier.weight(1f))
+                Text("EduFlow — Asesor", fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold, color = VerdePrimario)
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(22.dp))
             }
 
             if (cargando) {
@@ -361,6 +378,58 @@ private fun PeersAsesorView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> U
                         SolicitudCard(sol = sol, onVerDetalle = onVerDetalle)
                         Spacer(Modifier.height(10.dp))
                     }
+            }
+        }
+
+        // Menú lateral (igual que Dashboard)
+        if (mostrarMenu) {
+            Box(modifier = Modifier.fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable { mostrarMenu = false }) {
+                Card(modifier = Modifier.fillMaxHeight().width(260.dp)
+                    .align(Alignment.CenterStart).clickable(enabled = false) {},
+                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(16.dp)) {
+                    Column(modifier = Modifier.fillMaxHeight().padding(24.dp)
+                        .windowInsetsPadding(WindowInsets.systemBars)) {
+                        Text("EduFlow", fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold, color = VerdePrimario)
+                        Spacer(Modifier.height(24.dp))
+                        Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFDDE8E0)) {
+                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(18.dp))
+                                    .background(VerdePrimario), contentAlignment = Alignment.Center) {
+                                    Text(SesionStorage.obtenerNombre().take(1).uppercase(),
+                                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text("Asesor", fontSize = 11.sp, color = TextoSecundario)
+                                    Text(SesionStorage.obtenerNombre(), fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        OutlinedButton(onClick = { mostrarMenu = false },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
+                            border = BorderStroke(1.dp, VerdePrimario)) {
+                            Text("Mi perfil", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(onClick = { mostrarMenu = false; onCerrarSesion() },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
+                            border = BorderStroke(1.dp, VerdePrimario)) {
+                            Text("Cerrar sesión", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
         }
     }
