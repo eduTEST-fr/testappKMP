@@ -191,3 +191,35 @@ TTS). Resumen de lo que cambió:
 - Login, registro (estructura general), JWT, StudyCast, Audios: igual que
   antes.
 - Las rutas y tablas de EP8/EP9 (Red de Apoyo) no cambiaron de comportamiento.
+
+---
+
+## EP10.1 — Correcciones reportadas tras prueba en dispositivo
+
+1. **Catálogo UPT corregido**: se reemplazaron las 5 carreras inventadas por
+   las 10 carreras reales de la Universidad Politécnica de Tulancingo
+   (confirmadas en upt.edu.mx): Ing. en Sistemas Computacionales, Ing. Civil,
+   Ing. en Robótica, Ing. Industrial, Ing. en Tecnologías de Manufactura,
+   Ing. en Electrónica y Telecomunicaciones, Ing. Financiera, Lic. en Gestión
+   Empresarial, Lic. en Negocios Internacionales, Lic. en Psicología. Además
+   ahora son 10 cuatrimestres (duración real confirmada en el plan de
+   estudios oficial), no 9.
+2. **Selector de cuatrimestre**: se reemplazó el campo de texto libre por un
+   dropdown (`SelectorCuatrimestre`) que solo permite elegir del 1 al 10, en
+   `RegisterView` y `PerfilView`.
+3. **Bug: el botón "Mi perfil" del Asesor no hacía nada.** En
+   `PeersView.kt`, `PeersAsesorView` nunca recibía `onVerPerfil` y el botón
+   solo cerraba el menú lateral sin navegar. Se agregó el parámetro y se
+   conectó correctamente — ahora el Asesor sí entra a su perfil y puede
+   editar materias, grado, especialidad y horarios de asesoría.
+4. **Bug: no se podía calificar a un asesor.** En `SolicitudDetalleView.kt`
+   la condición para mostrar el formulario de calificación tenía la lógica
+   invertida (`!esSolicitante` en vez de `esSolicitante`), por lo que
+   excluía justo a la persona que debía calificar (quien hizo la pregunta).
+   Corregido.
+5. **Eliminar respuestas desde Asesor**: se agregó `DELETE
+   /peers/respuestas/{id}` en `PeersRoutes.kt` (Alumno solo puede borrar la
+   propia; Asesor/Admin pueden borrar cualquiera). `SolicitudDetalleView`
+   ahora separa el permiso de "eliminar solicitud" (solo Admin) del de
+   "eliminar respuesta" (Admin, Asesor, o el propio autor de la respuesta),
+   y usa la nueva ruta en vez de la de `/admin/...` que antes daba 403.

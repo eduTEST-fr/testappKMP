@@ -109,7 +109,7 @@ fun PerfilView(onVolver: () -> Unit) {
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
             val dto = jsonParser.decodeFromString<PerfilApiDto>(resp)
-            carrera = dto.carrera
+            carrera = dto.carrera.ifBlank { CatalogoUPT.nombresCarreras.first() }
             cuatrimestre = dto.cuatrimestre.toString()
             bio = dto.sobreMi
             materias = dto.materiasDestaca.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -188,8 +188,8 @@ fun PerfilView(onVolver: () -> Unit) {
                         Spacer(Modifier.height(14.dp))
                         SelectorCarrera(carrera) { carrera = it }
                         Spacer(Modifier.height(8.dp))
-                        CampoTexto("Cuatrimestre (número)", cuatrimestre, "Ej: 5") {
-                            cuatrimestre = it.filter { c -> c.isDigit() }
+                        SelectorCuatrimestre(cuatrimestre.toIntOrNull()?.coerceIn(1, 10) ?: 1) {
+                            cuatrimestre = it.toString()
                         }
                         if (rol == "ASESOR") {
                             Spacer(Modifier.height(8.dp))

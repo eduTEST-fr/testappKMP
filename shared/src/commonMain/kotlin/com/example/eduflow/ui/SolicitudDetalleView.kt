@@ -122,7 +122,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                 TextButton(onClick = {
                     scope.launch {
                         try {
-                            client.delete("${ApiConfig.BASE_URL}/admin/peers/respuestas/$respId") {
+                            client.delete("${ApiConfig.BASE_URL}/peers/respuestas/$respId") {
                                 header("Authorization", "Bearer $token")
                             }
                             cargar()
@@ -172,12 +172,18 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                 val esSolicitante = miUserId == sol.autor.id
                 val puedeCerrar   = sol.estado == "ABIERTA" &&
                     (rol == "ADMIN" || rol == "ASESOR" || esSolicitante)
-                val puedeEliminar = rol == "ADMIN"
+                val puedeEliminarSolicitud = rol == "ADMIN"
+                // Una respuesta la puede eliminar: ADMIN (moderación), ASESOR
+                // (moderación de la Red de Apoyo), o el propio autor de esa respuesta.
+                fun puedeEliminarRespuesta(autorRespuestaId: Int) =
+                    rol == "ADMIN" || rol == "ASESOR" || autorRespuestaId == miUserId
 
                 // El Alumno puede calificar cuando la solicitud está CERRADA,
-                // hay respuestas, no es el autor y aún no calificó esta sesión.
+                // hay respuestas, ES quien hizo la pregunta originalmente
+                // (solo el solicitante puede calificar a quien le respondió),
+                // y aún no calificó esta sesión.
                 val puedeCalificar = rol == "ALUMNO" && sol.estado == "CERRADA" &&
-                    sol.respuestas.isNotEmpty() && !esSolicitante && !calificacionEnviada
+                    sol.respuestas.isNotEmpty() && esSolicitante && !calificacionEnviada
 
                 // Primer asesor que respondió (para asociar la calificación)
                 val asesorRespuesta = sol.respuestas.firstOrNull {
@@ -228,7 +234,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                             }
 
                             // Botones cerrar / eliminar
-                            if (puedeCerrar || puedeEliminar) {
+                            if (puedeCerrar || puedeEliminarSolicitud) {
                                 Spacer(Modifier.height(14.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (puedeCerrar) {
@@ -251,7 +257,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                                 color = VerdePrimario, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
-                                    if (puedeEliminar) {
+                                    if (puedeEliminarSolicitud) {
                                         OutlinedButton(
                                             onClick = { confirmEliminarSol = true },
                                             shape = RoundedCornerShape(10.dp),
@@ -302,7 +308,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                             }
                                             Text(etiqueta, fontSize = 11.sp, color = TextoSecundario)
                                         }
-                                        if (puedeEliminar) {
+                                        if (puedeEliminarRespuesta(resp.autor.id)) {
                                             TextButton(onClick = { confirmEliminarResp = resp.id },
                                                 contentPadding = PaddingValues(4.dp)) {
                                                 Text("✕", fontSize = 14.sp, color = Color(0xFFB00020))

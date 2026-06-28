@@ -213,6 +213,34 @@ fun Routing.peersRoutes() {
         call.respond(HttpStatusCode.Created, mapOf("id" to id, "mensaje" to "Respuesta publicada"))
     }
 
+    // DELETE /peers/respuestas/{id}
+    // ALUMNO: solo puede eliminar su propia respuesta. ASESOR/ADMIN: cualquiera
+    // (moderación — pueden retirar respuestas equivocadas o inapropiadas).
+    delete("/peers/respuestas/{id}") {
+        val userId = obtenerUserId(call) ?: run {
+            call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
+            return@delete
+        }
+        val rolUsuario = obtenerRol(call)
+        val respuestaId = call.parameters["id"]?.toIntOrNull() ?: run {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
+            return@delete
+        }
+        val deleted = transaction {
+            if (rolUsuario == "ASESOR" || rolUsuario == "ADMIN") {
+                PeersRespuestas.deleteWhere { PeersRespuestas.id eq respuestaId }
+            } else {
+                PeersRespuestas.deleteWhere {
+                    (PeersRespuestas.id eq respuestaId) and (PeersRespuestas.autorId eq userId)
+                }
+            }
+        }
+        if (deleted == 0)
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No autorizado"))
+        else
+            call.respond(mapOf("mensaje" to "Respuesta eliminada"))
+    }
+
     // GET /peers/mentores/destacados
     get("/peers/mentores/destacados") {
         val mentores = transaction {

@@ -35,6 +35,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
     var correo       by remember { mutableStateOf("") }
     var password     by remember { mutableStateOf("") }
     var carrera      by remember { mutableStateOf(CatalogoUPT.nombresCarreras.first()) }
+    var cuatrimestre by remember { mutableStateOf(1) }
     var esAsesor     by remember { mutableStateOf(false) }
     var codigoAsesor by remember { mutableStateOf("") }
     var cargando     by remember { mutableStateOf(false) }
@@ -77,6 +78,9 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
 
                     SelectorCarrera(carrera) { carrera = it }
+                    Spacer(Modifier.height(12.dp))
+
+                    SelectorCuatrimestre(cuatrimestre) { cuatrimestre = it }
                     Spacer(Modifier.height(12.dp))
 
                     Text("Contraseña", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
@@ -188,7 +192,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
                                                     client.put("${ApiConfig.BASE_URL}/peers/perfil") {
                                                         header("Authorization", "Bearer $token")
                                                         contentType(ContentType.Application.Json)
-                                                        setBody("{\"carrera\":\"${escaparJson(carrera)}\"}")
+                                                        setBody("{\"carrera\":\"${escaparJson(carrera)}\",\"cuatrimestre\":$cuatrimestre}")
                                                     }
                                                 } catch (e: Exception) { /* el perfil se puede completar despues */ }
                                                 onRegistroExitoso()
@@ -275,6 +279,39 @@ fun SelectorCarrera(carreraSeleccionada: String, onSeleccionar: (String) -> Unit
                 DropdownMenuItem(
                     text = { Text(opcion, fontSize = 13.sp) },
                     onClick = { onSeleccionar(opcion); expandido = false }
+                )
+            }
+        }
+    }
+}
+
+// Selector de cuatrimestre: únicamente del 1 al 10 (duración real del plan de
+// estudios de la UPT), para no permitir valores fuera de rango como texto libre.
+@Composable
+fun SelectorCuatrimestre(cuatrimestreSeleccionado: Int, onSeleccionar: (Int) -> Unit) {
+    var expandido by remember { mutableStateOf(false) }
+    Text("Cuatrimestre", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        color = TextoPrimario, modifier = Modifier.padding(bottom = 6.dp))
+    Box {
+        OutlinedTextField(
+            value = "${cuatrimestreSeleccionado}° cuatrimestre",
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier.fillMaxWidth().clickable { expandido = true },
+            enabled = false,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledBorderColor = Color(0xFFE0E0E0),
+                disabledTextColor = TextoPrimario,
+                disabledContainerColor = Color.White
+            )
+        )
+        Box(modifier = Modifier.matchParentSize().clickable { expandido = true })
+        DropdownMenu(expanded = expandido, onDismissRequest = { expandido = false }) {
+            com.example.eduflow.data.CatalogoUPT.cuatrimestres.forEach { n ->
+                DropdownMenuItem(
+                    text = { Text("${n}° cuatrimestre", fontSize = 13.sp) },
+                    onClick = { onSeleccionar(n); expandido = false }
                 )
             }
         }

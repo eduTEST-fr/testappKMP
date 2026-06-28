@@ -94,7 +94,7 @@ fun PeersView(
         "ADMIN"  -> PeersAdminView(onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle)
         "ASESOR" -> PeersAsesorView(
             onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle,
-            onVerMisAsesorias = onVerMisAsesorias
+            onVerMisAsesorias = onVerMisAsesorias, onVerPerfil = onVerPerfil
         )
         else     -> PeersAlumnoView(
             onVolver = onVolver, onVerStudyCast = onVerStudyCast,
@@ -315,7 +315,8 @@ private fun PeersAlumnoView(
 private fun PeersAsesorView(
     onCerrarSesion: () -> Unit,
     onVerDetalle: (Int) -> Unit,
-    onVerMisAsesorias: () -> Unit
+    onVerMisAsesorias: () -> Unit,
+    onVerPerfil: () -> Unit
 ) {
     val client = remember { HttpClient() }
     val token  = SesionStorage.obtenerToken() ?: ""
@@ -446,7 +447,7 @@ private fun PeersAsesorView(
                             }
                         }
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = { mostrarMenu = false },
+                        OutlinedButton(onClick = { mostrarMenu = false; onVerPerfil() },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
