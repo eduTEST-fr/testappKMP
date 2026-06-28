@@ -34,6 +34,9 @@ data class MateriaUI(val id: Int, val nombre: String, val dificultad: Int)
 @Serializable
 private data class MateriaApiDto(val id: Int, val nombre: String, val dificultad: Int)
 
+@Serializable
+private data class NotificacionResumenDto(val id: Int, val leida: Boolean)
+
 private val jsonParserDashboard = Json { ignoreUnknownKeys = true }
 
 @Composable
@@ -42,12 +45,27 @@ fun DashboardView(
     onVerAudios: () -> Unit,
     onVerPeers: () -> Unit,
     onVerPerfil: () -> Unit,
+    onVerNotificaciones: () -> Unit,
+    onVerMisAsesorias: () -> Unit,
     onCerrarSesion: () -> Unit
 ) {
     var mostrarFormulario by remember { mutableStateOf(false) }
     var materias by remember { mutableStateOf<List<MateriaUI>>(emptyList()) }
     var cargando by remember { mutableStateOf(true) }
     var mostrarMenu by remember { mutableStateOf(false) }
+    var notificacionesNoLeidas by remember { mutableStateOf(0) }
+
+    val notifClient = remember { HttpClient() }
+    LaunchedEffect(Unit) {
+        try {
+            val token = SesionStorage.obtenerToken() ?: ""
+            val resp = notifClient.get("${ApiConfig.BASE_URL}/notificaciones") {
+                header("Authorization", "Bearer $token")
+            }.bodyAsText()
+            val lista = jsonParserDashboard.decodeFromString<List<NotificacionResumenDto>>(resp)
+            notificacionesNoLeidas = lista.count { !it.leida }
+        } catch (e: Exception) { /* sin notificaciones por ahora */ }
+    }
     var mostrarProximamente by remember { mutableStateOf(false) }
     var materiaDetalle by remember { mutableStateOf<MateriaUI?>(null) }
     // fechas de examen por materiaId, usado para el bloqueo "EXAMEN HOY"
@@ -174,6 +192,42 @@ fun DashboardView(
                 Text("EduFlow", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
+                // Notificaciones — muestra cuántas no se han leído
+                Box(
+                    modifier = Modifier.size(36.dp).clickable { onVerNotificaciones() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier.width(15.dp).height(12.dp)
+                                .background(
+                                    VerdePrimario,
+                                    RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp, bottomStart = 2.dp, bottomEnd = 2.dp)
+                                )
+                        )
+                        Spacer(Modifier.height(1.dp))
+                        Box(
+                            modifier = Modifier.width(5.dp).height(3.dp)
+                                .background(VerdePrimario, RoundedCornerShape(2.dp))
+                        )
+                    }
+                    if (notificacionesNoLeidas > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(16.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFB00020)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (notificacionesNoLeidas > 9) "9+" else "$notificacionesNoLeidas",
+                                fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
                 // Avatar — muestra el correo activo
                 Box(
                     modifier = Modifier
@@ -599,6 +653,22 @@ fun DashboardView(
                         border = BorderStroke(1.dp, VerdePrimario)
                     ) {
                         Text("Mi perfil", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Mis Asesorías (con asesores agendadas)
+                    OutlinedButton(
+                        onClick = {
+                            mostrarMenu = false
+                            onVerMisAsesorias()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
+                        border = BorderStroke(1.dp, VerdePrimario)
+                    ) {
+                        Text("Mis Asesorías", fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(Modifier.height(10.dp))

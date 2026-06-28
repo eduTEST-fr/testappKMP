@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.data.CatalogoUPT
 import com.example.eduflow.storage.SesionStorage
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -33,6 +34,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
     var matricula    by remember { mutableStateOf("") }
     var correo       by remember { mutableStateOf("") }
     var password     by remember { mutableStateOf("") }
+    var carrera      by remember { mutableStateOf(CatalogoUPT.nombresCarreras.first()) }
     var esAsesor     by remember { mutableStateOf(false) }
     var codigoAsesor by remember { mutableStateOf("") }
     var cargando     by remember { mutableStateOf(false) }
@@ -72,6 +74,9 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
                     CampoTexto("Matrícula", matricula, "Ej: 210301001") { matricula = it }
                     Spacer(Modifier.height(12.dp))
                     CampoTexto("Correo institucional", correo, "alumno@upt.edu.mx") { correo = it }
+                    Spacer(Modifier.height(12.dp))
+
+                    SelectorCarrera(carrera) { carrera = it }
                     Spacer(Modifier.height(12.dp))
 
                     Text("Contraseña", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
@@ -179,6 +184,13 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
 
                                             if (token.isNotEmpty()) {
                                                 SesionStorage.guardarToken(token, nom, rolResp)
+                                                try {
+                                                    client.put("${ApiConfig.BASE_URL}/peers/perfil") {
+                                                        header("Authorization", "Bearer $token")
+                                                        contentType(ContentType.Application.Json)
+                                                        setBody("{\"carrera\":\"${escaparJson(carrera)}\"}")
+                                                    }
+                                                } catch (e: Exception) { /* el perfil se puede completar despues */ }
                                                 onRegistroExitoso()
                                             } else {
                                                 val err = Regex(""""error":"([^"]+)"""")
@@ -234,4 +246,37 @@ fun CampoTexto(label: String, value: String, placeholder: String, onChange: (Str
             unfocusedBorderColor = Color(0xFFE0E0E0)
         )
     )
+}
+
+// Selector de carrera UPT: lista desplegable con las carreras del catálogo fijo.
+@Composable
+fun SelectorCarrera(carreraSeleccionada: String, onSeleccionar: (String) -> Unit) {
+    var expandido by remember { mutableStateOf(false) }
+    Text("Carrera", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        color = TextoPrimario, modifier = Modifier.padding(bottom = 6.dp))
+    Box {
+        OutlinedTextField(
+            value = carreraSeleccionada,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier.fillMaxWidth().clickable { expandido = true },
+            enabled = false,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledBorderColor = Color(0xFFE0E0E0),
+                disabledTextColor = TextoPrimario,
+                disabledContainerColor = Color.White
+            )
+        )
+        // Capa transparente clickeable encima del campo deshabilitado para abrir el menú
+        Box(modifier = Modifier.matchParentSize().clickable { expandido = true })
+        DropdownMenu(expanded = expandido, onDismissRequest = { expandido = false }) {
+            com.example.eduflow.data.CatalogoUPT.nombresCarreras.forEach { opcion ->
+                DropdownMenuItem(
+                    text = { Text(opcion, fontSize = 13.sp) },
+                    onClick = { onSeleccionar(opcion); expandido = false }
+                )
+            }
+        }
+    }
 }

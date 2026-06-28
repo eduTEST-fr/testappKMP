@@ -101,3 +101,32 @@ object PeersCalificaciones : IntIdTable("peers_calificaciones") {
     val estrellas = integer("estrellas") // 1..5
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }
+
+// --- EP10: Agendado de Asesorías ---
+
+object AsesorDisponibilidad : IntIdTable("asesor_disponibilidad") {
+    val asesorId = integer("asesor_id").references(Usuarios.id)
+    val diaSemana = integer("dia_semana") // 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie
+    val horaInicio = varchar("hora_inicio", 5) // "09:00"
+    val horaFin = varchar("hora_fin", 5)       // "10:00"
+}
+
+object Asesorias : IntIdTable("asesorias") {
+    val asesorId = integer("asesor_id").references(Usuarios.id)
+    val alumnoId = integer("alumno_id").references(Usuarios.id)
+    val disponibilidadId = integer("disponibilidad_id").references(AsesorDisponibilidad.id)
+    val fecha = date("fecha")
+    val estado = varchar("estado", 20).clientDefault { "PENDIENTE" } // PENDIENTE | ACEPTADA | CANCELADA
+    val mensajeAsesor = text("mensaje_asesor").nullable()
+    val enlace = varchar("enlace", 500).nullable()
+    val ubicacion = varchar("ubicacion", 200).nullable()
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}
+
+object Notificaciones : IntIdTable("notificaciones") {
+    val usuarioId = integer("usuario_id").references(Usuarios.id)
+    val titulo = varchar("titulo", 200)
+    val contenido = text("contenido")
+    val leida = bool("leida").clientDefault { false }
+    val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
+}

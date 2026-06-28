@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.data.CatalogoUPT
 import com.example.eduflow.storage.PerfilStorage
 import com.example.eduflow.storage.SesionStorage
 import io.ktor.client.*
@@ -36,6 +37,25 @@ private data class PerfilApiDto(
     val permiteAsesoria: Boolean = false
 )
 
+@Serializable
+private data class DisponibilidadApiDto(
+    val id: Int = 0,
+    val diaSemana: Int,
+    val horaInicio: String,
+    val horaFin: String,
+    val ocupado: Boolean = false
+)
+
+private val NOMBRES_DIA = mapOf(1 to "Lunes", 2 to "Martes", 3 to "Miércoles", 4 to "Jueves", 5 to "Viernes")
+
+// Estado de un día de la semana en el editor de disponibilidad del Asesor.
+private data class DispDiaUI(
+    val dia: Int,
+    val activo: Boolean = false,
+    val horaInicio: String = "09:00",
+    val horaFin: String = "10:00"
+)
+
 private val jsonParser = Json { ignoreUnknownKeys = true }
 
 // Perfil del usuario para la Red de Apoyo: carrera, cuatrimestre, materias
@@ -59,12 +79,28 @@ fun PerfilView(onVolver: () -> Unit) {
     var cuatrimestre    by remember { mutableStateOf(PerfilStorage.obtenerCuatrimestre()) }
     var bio              by remember { mutableStateOf(PerfilStorage.obtenerBio()) }
     var materias         by remember { mutableStateOf(PerfilStorage.obtenerMateriasDestacadas()) }
-    var nuevaMateria     by remember { mutableStateOf("") }
     var avatarId          by remember { mutableStateOf("avatar_1") }
     var rol                by remember { mutableStateOf("ALUMNO") }
     var grado                by remember { mutableStateOf("") }
     var especialidad          by remember { mutableStateOf("") }
     var permiteAsesoria        by remember { mutableStateOf(false) }
+    var disponibilidad         by remember { mutableStateOf(
+        listOf(1, 2, 3, 4, 5).map { DispDiaUI(dia = it) }
+    ) }
+
+    suspend fun cargarDisponibilidad() {
+        try {
+            val resp = client.get("${ApiConfig.BASE_URL}/asesorias/disponibilidad/mia") {
+                header("Authorization", "Bearer $token")
+            }.bodyAsText()
+            val lista = jsonParser.decodeFromString<List<DisponibilidadApiDto>>(resp)
+            disponibilidad = listOf(1, 2, 3, 4, 5).map { dia ->
+                val existente = lista.find { it.diaSemana == dia }
+                if (existente != null) DispDiaUI(dia, true, existente.horaInicio, existente.horaFin)
+                else DispDiaUI(dia)
+            }
+        } catch (e: Exception) { /* sin disponibilidad guardada aun */ }
+    }
 
     suspend fun cargarPerfil() {
         cargando = true
@@ -82,6 +118,7 @@ fun PerfilView(onVolver: () -> Unit) {
             grado = dto.grado
             especialidad = dto.especialidad
             permiteAsesoria = dto.permiteAsesoria
+            if (dto.rol == "ASESOR") cargarDisponibilidad()
         } catch (e: Exception) { errorMsg = "No se pudo cargar el perfil desde el servidor." }
         cargando = false
     }
@@ -149,7 +186,7 @@ fun PerfilView(onVolver: () -> Unit) {
                             color = TextoPrimario, modifier = Modifier.padding(bottom = 8.dp))
                         SelectorAvatar(avatarSeleccionado = avatarId, onSeleccionar = { avatarId = it })
                         Spacer(Modifier.height(14.dp))
-                        CampoTexto("Carrera", carrera, "Ej: Ing. en Sistemas") { carrera = it }
+                        SelectorCarrera(carrera) { carrera = it }
                         Spacer(Modifier.height(8.dp))
                         CampoTexto("Cuatrimestre (número)", cuatrimestre, "Ej: 5") {
                             cuatrimestre = it.filter { c -> c.isDigit() }
@@ -167,6 +204,70 @@ fun PerfilView(onVolver: () -> Unit) {
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text("Disponible para dar asesorías", fontSize = 13.sp, color = TextoPrimario)
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            Text("Disponibilidad para asesorías", fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold, color = TextoPrimario,
+                                modifier = Modifier.padding(bottom = 8.dp))
+                            disponibilidad.forEachIndexed { idx, dia ->
+                                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F4EE))) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Switch(
+                                                checked = dia.activo,
+                                                onCheckedChange = { activo ->
+                                                    disponibilidad = disponibilidad.toMutableList().also {
+                                                        it[idx] = dia.copy(activo = activo)
+                                                    }
+                                                },
+                                                colors = SwitchDefaults.colors(checkedTrackColor = VerdePrimario)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(NOMBRES_DIA[dia.dia] ?: "", fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                                        }
+                                        if (dia.activo) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                OutlinedTextField(
+                                                    value = dia.horaInicio,
+                                                    onValueChange = { v ->
+                                                        disponibilidad = disponibilidad.toMutableList().also {
+                                                            it[idx] = dia.copy(horaInicio = v)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f), singleLine = true,
+                                                    label = { Text("Inicio", fontSize = 11.sp) },
+                                                    placeholder = { Text("09:00", fontSize = 12.sp) },
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = VerdePrimario,
+                                                        unfocusedBorderColor = Color(0xFFE0E0E0)
+                                                    )
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                OutlinedTextField(
+                                                    value = dia.horaFin,
+                                                    onValueChange = { v ->
+                                                        disponibilidad = disponibilidad.toMutableList().also {
+                                                            it[idx] = dia.copy(horaFin = v)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f), singleLine = true,
+                                                    label = { Text("Fin", fontSize = 11.sp) },
+                                                    placeholder = { Text("10:00", fontSize = 12.sp) },
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = VerdePrimario,
+                                                        unfocusedBorderColor = Color(0xFFE0E0E0)
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -208,6 +309,18 @@ fun PerfilView(onVolver: () -> Unit) {
                                                     "\"permiteAsesoria\":$permiteAsesoria}"
                                                 else "}"
                                             )
+                                        }
+                                        if (rol == "ASESOR") {
+                                            val horariosJson = disponibilidad.filter { it.activo }.joinToString(",") {
+                                                "{\"diaSemana\":${it.dia}," +
+                                                "\"horaInicio\":\"${escaparJson(it.horaInicio)}\"," +
+                                                "\"horaFin\":\"${escaparJson(it.horaFin)}\"}"
+                                            }
+                                            client.put("${ApiConfig.BASE_URL}/asesorias/disponibilidad") {
+                                                header("Authorization", "Bearer $token")
+                                                contentType(ContentType.Application.Json)
+                                                setBody("{\"horarios\":[$horariosJson]}")
+                                            }
                                         }
                                         // Respaldo local para que el perfil cargue rapido offline
                                         PerfilStorage.guardarPerfil(carrera.trim(), cuatrimestre.trim(), "", bio.trim())
@@ -295,32 +408,42 @@ fun PerfilView(onVolver: () -> Unit) {
                         }
 
                         if (editando) {
-                            Spacer(Modifier.height(12.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                OutlinedTextField(
-                                    value = nuevaMateria, onValueChange = { nuevaMateria = it },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    placeholder = { Text("Ej: Cálculo Multivariado",
-                                        color = Color(0xFFBBBBBB), fontSize = 13.sp) },
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = VerdePrimario,
-                                        unfocusedBorderColor = Color(0xFFE0E0E0)
-                                    )
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp), color = VerdePrimario,
-                                    modifier = Modifier.clickable {
-                                        val m = nuevaMateria.trim()
-                                        if (m.isNotEmpty() && m !in materias) materias = materias + m
-                                        nuevaMateria = ""
+                            Spacer(Modifier.height(14.dp))
+                            Text(
+                                "Elige hasta 5 materias del catálogo de tu carrera",
+                                fontSize = 12.sp, color = TextoSecundario,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            val catalogo = CatalogoUPT.materiasPorCuatrimestre(carrera)
+                            Column(modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                                catalogo.forEach { (cuatri, lista) ->
+                                    Text("${cuatri}° cuatrimestre", fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold, color = VerdePrimario,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+                                    lista.forEach { m ->
+                                        val seleccionada = m.nombre in materias
+                                        val limiteAlcanzado = materias.size >= 5 && !seleccionada
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                                .clickable(enabled = !limiteAlcanzado) {
+                                                    materias = if (seleccionada) materias - m.nombre
+                                                               else materias + m.nombre
+                                                }
+                                        ) {
+                                            Checkbox(
+                                                checked = seleccionada,
+                                                onCheckedChange = {
+                                                    materias = if (seleccionada) materias - m.nombre
+                                                               else materias + m.nombre
+                                                },
+                                                enabled = !limiteAlcanzado,
+                                                colors = CheckboxDefaults.colors(checkedColor = VerdePrimario)
+                                            )
+                                            Text(m.nombre, fontSize = 13.sp,
+                                                color = if (limiteAlcanzado) Color(0xFFBBBBBB) else TextoPrimario)
+                                        }
                                     }
-                                ) {
-                                    Text("Agregar", color = Color.White, fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp))
                                 }
                             }
                         }

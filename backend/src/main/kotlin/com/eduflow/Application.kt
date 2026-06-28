@@ -36,5 +36,6 @@ fun Application.module() {
         consejoRoutes()
         peersRoutes()
         adminPeersRoutes()
+        asesoriaRoutes()
     }
 }

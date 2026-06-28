@@ -140,3 +140,54 @@ TTS). Resumen de lo que cambió:
 - Los nombres de los campos JSON que ya existían no cambiaron — solo se
   agregaron campos nuevos, así que nada de lo viejo se rompe.
 - `Red de Apoyo` sigue siendo solo visual, sin lógica nueva, tal como se pidió.
+
+---
+
+## EP10 — Carreras, Materias UPT y Agendado de Asesorías
+
+### Catálogo UPT (Funcionalidad A)
+- Nuevo `shared/.../data/CatalogoUPT.kt`: catálogo fijo de 5 carreras y sus
+  materias por cuatrimestre (6+ para Sistemas Computacionales, 4+ para las
+  demás). Vive en el frontend porque son datos estáticos, no hay tabla nueva.
+- `ui/RegisterView.kt` y `ui/PerfilView.kt` reemplazan el campo de texto libre
+  de carrera por `SelectorCarrera` (dropdown sobre el catálogo). Tras
+  registrarse, se hace un `PUT /peers/perfil` con la carrera elegida.
+- `PerfilView.kt`: "Materias en las que destaca" ahora se elige con checkboxes
+  del catálogo de la carrera seleccionada, con tope de 5 materias. El backend
+  sigue guardando el CSV igual que antes (`materiasDestaca`), sin tablas nuevas.
+
+### Ver todos los asesores (Funcionalidad B)
+- `GET /peers/asesores` ya existía en el backend (devuelve todos los ASESOR
+  con promedio de estrellas); no se tocó.
+- Nuevas pantallas: `AsesoresListaView.kt` (lista completa, ordenada por
+  promedio) y `PerfilAsesorView.kt` (perfil público con botón "Agendar
+  asesoría" si `permiteAsesoria` está activo).
+- `PeersView.kt`: el botón "Ver todos los asesores" y las tarjetas de
+  "Asesores Destacados" ahora navegan a estas pantallas.
+
+### Agendado de asesorías (Funcionalidad C)
+- 3 tablas nuevas: `asesor_disponibilidad`, `asesorias`, `notificaciones`
+  (ver `migracion_EP10_asesorias.sql`; `DatabaseFactory` también las crea
+  solas al iniciar el backend, igual que el resto del esquema).
+- Rutas nuevas en `AsesoriaRoutes.kt`:
+  `PUT /asesorias/disponibilidad`, `GET /asesorias/disponibilidad/mia`,
+  `GET /asesorias/disponibilidad/{asesorId}`, `POST /asesorias`,
+  `GET /asesorias/mis-asesorias`, `PUT /asesorias/{id}/aceptar`,
+  `PUT /asesorias/{id}/cancelar`, `GET /notificaciones`,
+  `PUT /notificaciones/{id}/leer`.
+- `PerfilView.kt` (rol Asesor): nueva sección "Disponibilidad para
+  asesorías" con toggles Lun–Vie y horas de inicio/fin.
+- Nuevas pantallas: `AgendarAsesoriaView.kt` (Alumno elige día y horario
+  libres), `MisAsesoriasView.kt` (Alumno y Asesor ven sus asesorías; el
+  Asesor puede aceptar con mensaje/enlace/ubicación o cancelar) y
+  `NotificacionesView.kt` (bandeja de avisos).
+- `DashboardView.kt`: ícono de notificaciones con contador de no leídas en
+  la barra superior, y acceso a "Mis Asesorías" desde el menú lateral.
+- `App.kt`: nuevas pantallas en el enum `Pantalla` y su navegación:
+  `ASESORES_LISTA`, `PERFIL_ASESOR`, `AGENDAR_ASESORIA`, `MIS_ASESORIAS`,
+  `NOTIFICACIONES`.
+
+### Qué NO se tocó
+- Login, registro (estructura general), JWT, StudyCast, Audios: igual que
+  antes.
+- Las rutas y tablas de EP8/EP9 (Red de Apoyo) no cambiaron de comportamiento.

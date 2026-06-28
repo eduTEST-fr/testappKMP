@@ -84,16 +84,24 @@ fun PeersView(
     onVerAudios: () -> Unit,
     onVerPerfil: () -> Unit,
     onCerrarSesion: () -> Unit,
-    onVerDetalle: (Int) -> Unit
+    onVerDetalle: (Int) -> Unit,
+    onVerTodosAsesores: () -> Unit,
+    onVerPerfilAsesor: (Int) -> Unit,
+    onVerMisAsesorias: () -> Unit
 ) {
     val rol = SesionStorage.obtenerRol()
     when (rol) {
         "ADMIN"  -> PeersAdminView(onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle)
-        "ASESOR" -> PeersAsesorView(onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle)
+        "ASESOR" -> PeersAsesorView(
+            onCerrarSesion = onCerrarSesion, onVerDetalle = onVerDetalle,
+            onVerMisAsesorias = onVerMisAsesorias
+        )
         else     -> PeersAlumnoView(
             onVolver = onVolver, onVerStudyCast = onVerStudyCast,
             onVerAudios = onVerAudios, onVerPerfil = onVerPerfil,
-            onVerDetalle = onVerDetalle
+            onVerDetalle = onVerDetalle,
+            onVerTodosAsesores = onVerTodosAsesores,
+            onVerPerfilAsesor = onVerPerfilAsesor
         )
     }
 }
@@ -103,7 +111,9 @@ fun PeersView(
 private fun PeersAlumnoView(
     onVolver: () -> Unit, onVerStudyCast: () -> Unit,
     onVerAudios: () -> Unit, onVerPerfil: () -> Unit,
-    onVerDetalle: (Int) -> Unit
+    onVerDetalle: (Int) -> Unit,
+    onVerTodosAsesores: () -> Unit,
+    onVerPerfilAsesor: (Int) -> Unit
 ) {
     val scope  = rememberCoroutineScope()
     val client = remember { HttpClient() }
@@ -215,11 +225,14 @@ private fun PeersAlumnoView(
                     Text("Aún no hay asesores registrados.", fontSize = 12.sp,
                         color = TextoSecundario, modifier = Modifier.padding(bottom = 8.dp))
                 } else {
-                    mentores.take(1).forEach { MentorDestacadoCard(it) }
+                    mentores.take(1).forEach { MentorDestacadoCard(it) { onVerPerfilAsesor(it.id) } }
                     Spacer(Modifier.height(10.dp))
-                    mentores.drop(1).take(2).forEach { MentorCompactoCard(it); Spacer(Modifier.height(8.dp)) }
+                    mentores.drop(1).take(2).forEach {
+                        MentorCompactoCard(it) { onVerPerfilAsesor(it.id) }
+                        Spacer(Modifier.height(8.dp))
+                    }
                     Spacer(Modifier.height(4.dp))
-                    Surface(modifier = Modifier.fillMaxWidth().clickable { /* TODO EP10: navegar a AsesoresListaView */ },
+                    Surface(modifier = Modifier.fillMaxWidth().clickable { onVerTodosAsesores() },
                         shape = RoundedCornerShape(10.dp), color = Color(0xFFDDE8E0)) {
                         Text("Ver todos los asesores (${mentores.size})", fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold, color = VerdePrimario,
@@ -299,7 +312,11 @@ private fun PeersAlumnoView(
 
 // ── VISTA ASESOR ──────────────────────────────────────────────────────
 @Composable
-private fun PeersAsesorView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> Unit) {
+private fun PeersAsesorView(
+    onCerrarSesion: () -> Unit,
+    onVerDetalle: (Int) -> Unit,
+    onVerMisAsesorias: () -> Unit
+) {
     val client = remember { HttpClient() }
     val token  = SesionStorage.obtenerToken() ?: ""
 
@@ -362,6 +379,22 @@ private fun PeersAsesorView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> U
                         Text("${solicitudes.size} solicitudes abiertas. Pulsa una para responder o cerrarla.",
                             fontSize = 12.sp, color = Color.White.copy(0.85f),
                             modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Surface(modifier = Modifier.fillMaxWidth().clickable { onVerMisAsesorias() },
+                    shape = RoundedCornerShape(14.dp), color = Color.White) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Mis Asesorías", fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold, color = TextoPrimario)
+                            Text("Revisa, acepta o cancela las asesorías agendadas contigo.",
+                                fontSize = 11.sp, color = TextoSecundario, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        Text("→", fontSize = 18.sp, color = VerdePrimario)
                     }
                 }
 
@@ -533,8 +566,8 @@ private fun PeersAdminView(onCerrarSesion: () -> Unit, onVerDetalle: (Int) -> Un
 
 // ── Componentes compartidos ───────────────────────────────────────────
 @Composable
-private fun MentorDestacadoCard(mentor: MentorApiDto) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+private fun MentorDestacadoCard(mentor: MentorApiDto, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(3.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -573,8 +606,8 @@ private fun MentorDestacadoCard(mentor: MentorApiDto) {
 }
 
 @Composable
-private fun MentorCompactoCard(mentor: MentorApiDto) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+private fun MentorCompactoCard(mentor: MentorApiDto, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(2.dp)) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

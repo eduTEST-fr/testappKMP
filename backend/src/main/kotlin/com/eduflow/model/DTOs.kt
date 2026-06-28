@@ -178,3 +178,64 @@ data class MentorDto(
     val totalCalif: Int,
     val permiteAsesoria: Boolean
 )
+
+// --- EP10: Agendado de Asesorías ---
+
+@Serializable
+data class DisponibilidadRequest(
+    val diaSemana: Int,
+    val horaInicio: String,
+    val horaFin: String
+)
+
+@Serializable
+data class GuardarDisponibilidadRequest(
+    val horarios: List<DisponibilidadRequest>
+)
+
+@Serializable
+data class DisponibilidadDto(
+    val id: Int,
+    val diaSemana: Int,
+    val horaInicio: String,
+    val horaFin: String,
+    val ocupado: Boolean = false
+)
+
+@Serializable
+data class CrearAsesoriaRequest(
+    val asesorId: Int,
+    val disponibilidadId: Int,
+    val fecha: String // "YYYY-MM-DD"
+)
+
+@Serializable
+data class AceptarAsesoriaRequest(
+    val mensajeAsesor: String? = null,
+    val enlace: String? = null,
+    val ubicacion: String? = null
+)
+
+@Serializable
+data class AsesoriaDto(
+    val id: Int,
+    val asesor: AutorDto,
+    val alumno: AutorDto,
+    val fecha: String,
+    val horaInicio: String,
+    val horaFin: String,
+    val estado: String,
+    val mensajeAsesor: String = "",
+    val enlace: String = "",
+    val ubicacion: String = "",
+    val createdAt: String
+)
+
+@Serializable
+data class NotificacionDto(
+    val id: Int,
+    val titulo: String,
+    val contenido: String,
+    val leida: Boolean,
+    val createdAt: String
+)

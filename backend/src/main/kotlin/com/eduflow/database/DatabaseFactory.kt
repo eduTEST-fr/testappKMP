@@ -29,7 +29,8 @@ object DatabaseFactory {
             SchemaUtils.createMissingTablesAndColumns(
                 Usuarios, Materias, Examenes,
                 Tarjetas, Podcasts, RedApoyo,
-                AsesoresPerfil, PeersSolicitudes, PeersRespuestas, PeersCalificaciones
+                AsesoresPerfil, PeersSolicitudes, PeersRespuestas, PeersCalificaciones,
+                AsesorDisponibilidad, Asesorias, Notificaciones
             )
 
             // Migración manual: la columna vieja 'audio_url' (TEXT/LONGTEXT con base64)
