@@ -248,3 +248,26 @@ TTS). Resumen de lo que cambió:
    una etiqueta verde con la palabra "Asesor" debajo de su nombre, en vez
    de texto plano, para que se distingan de las respuestas de otros
    alumnos.
+
+---
+
+## EP10.3 — Materias 100% reales (carga académica oficial) y calificación robusta
+
+1. **Catálogo de materias reemplazado por completo.** Se sustituyó por la
+   carga académica oficial proporcionada para 4 programas, copiada
+   exactamente (sin modificar ninguna materia ni cuatrimestre):
+   - Ingeniería en Sistemas Computacionales
+   - Ingeniería Industrial
+   - Ingeniería Civil
+   - Lic. en Ingeniería en Tecnologías de la Información e Innovación Digital
+     (este programa tiene Estadía en el cuatrimestre 6 *y* en el 10, tal
+     cual viene en el documento oficial — se respetó así).
+   Se eliminaron las demás carreras que no venían en el documento oficial.
+2. **Calificar respuestas — ahora sin condiciones frágiles.** Antes
+   dependía de identificar "quién hizo la pregunta" vía una llamada
+   adicional (/auth/me) que podía no estar lista a tiempo. Se simplificó:
+   cualquier Alumno que vea una respuesta de un Asesor/Admin puede tocarla
+   y calificarla en el momento, sin depender de esa verificación. Se
+   puede calificar más de una respuesta por solicitud (si respondieron
+   varios asesores), y cada una que ya se calificó muestra una etiqueta
+   "★ Calificada" en vez del botón de calificar.

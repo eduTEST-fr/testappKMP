@@ -57,10 +57,11 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
     var enviando    by remember { mutableStateOf(false) }
     var miUserId    by remember { mutableStateOf(0) }
 
-    // Calificación
+    // Calificación — un Alumno puede calificar cualquier respuesta de un Asesor/Admin
+    // (se guarda por id de respuesta para poder calificar varias en la misma solicitud).
     var estrellasSeleccionadas by remember { mutableStateOf(0) }
     var calificando            by remember { mutableStateOf(false) }
-    var calificacionEnviada    by remember { mutableStateOf(false) }
+    var respuestasCalificadas  by remember { mutableStateOf(setOf<Int>()) }
     var respuestaIdCalificando by remember { mutableStateOf<Int?>(null) }
 
     // Confirmaciones
@@ -179,16 +180,6 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                 fun puedeEliminarRespuesta(autorRespuestaId: Int) =
                     rol == "ADMIN" || rol == "ASESOR" || autorRespuestaId == miUserId
 
-                // El Alumno puede calificar en cuanto un Asesor (o Admin) le respondió,
-                // siempre que sea quien hizo la pregunta y no haya calificado ya esta
-                // solicitud. Ya no depende de que la solicitud esté CERRADA: el backend
-                // tampoco lo exige, y obligaba a cerrar antes de poder calificar.
-                val hayRespuestaDeAsesor = sol.respuestas.any {
-                    it.autor.rol == "ASESOR" || it.autor.rol == "ADMIN"
-                }
-                val puedeCalificarEnGeneral = rol == "ALUMNO" && esSolicitante &&
-                    hayRespuestaDeAsesor && !calificacionEnviada
-
                 Column(modifier = Modifier.fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -290,7 +281,8 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                     } else {
                         sol.respuestas.forEach { resp ->
                             val esRespuestaDeAsesor = resp.autor.rol == "ASESOR" || resp.autor.rol == "ADMIN"
-                            val puedeCalificarEsta = puedeCalificarEnGeneral && esRespuestaDeAsesor
+                            val puedeCalificarEsta = rol == "ALUMNO" && esRespuestaDeAsesor &&
+                                resp.id !in respuestasCalificadas
                             val expandida = respuestaIdCalificando == resp.id
 
                             Card(
@@ -330,6 +322,12 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                             Text(if (expandida) "Cerrar" else "Calificar", fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold, color = Color(0xFF8B6914),
                                                 modifier = Modifier.padding(end = 6.dp))
+                                        } else if (esRespuestaDeAsesor && resp.id in respuestasCalificadas) {
+                                            Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFDDE8E0)) {
+                                                Text("★ Calificada", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF8B6914),
+                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                                            }
                                         }
                                         if (puedeEliminarRespuesta(resp.autor.id)) {
                                             TextButton(onClick = { confirmEliminarResp = resp.id },
@@ -381,7 +379,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                                                     "\"estrellas\":$estrellasSeleccionadas}"
                                                                 )
                                                             }
-                                                            calificacionEnviada = true
+                                                            respuestasCalificadas = respuestasCalificadas + resp.id
                                                             respuestaIdCalificando = null
                                                         } catch (e: Exception) {
                                                             errorMsg = "Error al enviar la calificación."
@@ -408,20 +406,8 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                         }
                     }
 
-                    // Confirmación de calificación enviada
-                    if (calificacionEnviada) {
-                        Spacer(Modifier.height(8.dp))
-                        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFDDE8E0))) {
-                            Row(modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text("★", fontSize = 20.sp, color = Color(0xFF8B6914))
-                                Spacer(Modifier.width(10.dp))
-                                Text("¡Calificación enviada! Gracias por tu valoración.",
-                                    fontSize = 13.sp, color = TextoPrimario)
-                            }
-                        }
-                    }
+                    // (la confirmación de "ya calificada" se muestra ahora dentro de cada
+                    // tarjeta de respuesta, ver la etiqueta "Calificada" junto al nombre).
 
                     // ── Caja para responder (solicitud abierta) ──
                     if (sol.estado == "ABIERTA") {
