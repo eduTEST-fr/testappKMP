@@ -61,6 +61,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
     var estrellasSeleccionadas by remember { mutableStateOf(0) }
     var calificando            by remember { mutableStateOf(false) }
     var calificacionEnviada    by remember { mutableStateOf(false) }
+    var respuestaIdCalificando by remember { mutableStateOf<Int?>(null) }
 
     // Confirmaciones
     var confirmEliminarSol  by remember { mutableStateOf(false) }
@@ -178,17 +179,15 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                 fun puedeEliminarRespuesta(autorRespuestaId: Int) =
                     rol == "ADMIN" || rol == "ASESOR" || autorRespuestaId == miUserId
 
-                // El Alumno puede calificar cuando la solicitud está CERRADA,
-                // hay respuestas, ES quien hizo la pregunta originalmente
-                // (solo el solicitante puede calificar a quien le respondió),
-                // y aún no calificó esta sesión.
-                val puedeCalificar = rol == "ALUMNO" && sol.estado == "CERRADA" &&
-                    sol.respuestas.isNotEmpty() && esSolicitante && !calificacionEnviada
-
-                // Primer asesor que respondió (para asociar la calificación)
-                val asesorRespuesta = sol.respuestas.firstOrNull {
+                // El Alumno puede calificar en cuanto un Asesor (o Admin) le respondió,
+                // siempre que sea quien hizo la pregunta y no haya calificado ya esta
+                // solicitud. Ya no depende de que la solicitud esté CERRADA: el backend
+                // tampoco lo exige, y obligaba a cerrar antes de poder calificar.
+                val hayRespuestaDeAsesor = sol.respuestas.any {
                     it.autor.rol == "ASESOR" || it.autor.rol == "ADMIN"
-                } ?: sol.respuestas.firstOrNull()
+                }
+                val puedeCalificarEnGeneral = rol == "ALUMNO" && esSolicitante &&
+                    hayRespuestaDeAsesor && !calificacionEnviada
 
                 Column(modifier = Modifier.fillMaxSize()
                     .verticalScroll(rememberScrollState())
@@ -290,7 +289,18 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                         }
                     } else {
                         sol.respuestas.forEach { resp ->
-                            Card(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                            val esRespuestaDeAsesor = resp.autor.rol == "ASESOR" || resp.autor.rol == "ADMIN"
+                            val puedeCalificarEsta = puedeCalificarEnGeneral && esRespuestaDeAsesor
+                            val expandida = respuestaIdCalificando == resp.id
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                                    .let {
+                                        if (puedeCalificarEsta) it.clickable {
+                                            respuestaIdCalificando = if (expandida) null else resp.id
+                                            estrellasSeleccionadas = 0
+                                        } else it
+                                    },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(containerColor = Color.White),
                                 elevation = CardDefaults.cardElevation(2.dp)) {
@@ -301,12 +311,25 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(resp.autor.nombre, fontSize = 12.sp,
                                                 fontWeight = FontWeight.SemiBold, color = TextoPrimario)
-                                            val etiqueta = when (resp.autor.rol) {
-                                                "ASESOR" -> "Asesor"
-                                                "ADMIN"  -> "Administrador"
-                                                else     -> "${resp.autor.cuatrimestre}° cuatrimestre"
+                                            if (resp.autor.rol == "ASESOR") {
+                                                Spacer(Modifier.height(2.dp))
+                                                Surface(shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFFDDE8E0)) {
+                                                    Text("Asesor", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                                        color = VerdePrimario,
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                                                }
+                                            } else if (resp.autor.rol == "ADMIN") {
+                                                Text("Administrador", fontSize = 11.sp, color = TextoSecundario)
+                                            } else {
+                                                Text("${resp.autor.cuatrimestre}° cuatrimestre",
+                                                    fontSize = 11.sp, color = TextoSecundario)
                                             }
-                                            Text(etiqueta, fontSize = 11.sp, color = TextoSecundario)
+                                        }
+                                        if (puedeCalificarEsta) {
+                                            Text(if (expandida) "Cerrar" else "Calificar", fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold, color = Color(0xFF8B6914),
+                                                modifier = Modifier.padding(end = 6.dp))
                                         }
                                         if (puedeEliminarRespuesta(resp.autor.id)) {
                                             TextButton(onClick = { confirmEliminarResp = resp.id },
@@ -318,73 +341,68 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                     Spacer(Modifier.height(8.dp))
                                     Text(resp.contenido, fontSize = 13.sp,
                                         color = TextoSecundario, lineHeight = 19.sp)
-                                }
-                            }
-                        }
-                    }
 
-                    // ── Calificar asesor (solo Alumno, solicitud cerrada, no autor) ──
-                    if (puedeCalificar && asesorRespuesta != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEFEAE0)),
-                            elevation = CardDefaults.cardElevation(2.dp)) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Calificar al mentor", fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold, color = TextoPrimario,
-                                    modifier = Modifier.padding(bottom = 4.dp))
-                                Text("¿Qué tan útil fue la respuesta de ${asesorRespuesta.autor.nombre}?",
-                                    fontSize = 12.sp, color = TextoSecundario,
-                                    modifier = Modifier.padding(bottom = 12.dp))
+                                    // ── Calificación inline: aparece al tocar esta respuesta ──
+                                    if (expandida) {
+                                        Spacer(Modifier.height(12.dp))
+                                        Column(modifier = Modifier.fillMaxWidth()
+                                            .background(Color(0xFFEFEAE0), RoundedCornerShape(12.dp))
+                                            .padding(14.dp)) {
+                                            Text("¿Qué tan útil fue esta respuesta?", fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold, color = TextoPrimario,
+                                                modifier = Modifier.padding(bottom = 10.dp))
 
-                                // Estrellas
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    (1..5).forEach { n ->
-                                        Text(
-                                            text = if (n <= estrellasSeleccionadas) "★" else "☆",
-                                            fontSize = 32.sp,
-                                            color = if (n <= estrellasSeleccionadas) Color(0xFF8B6914)
-                                                    else Color(0xFFCCCCCC),
-                                            modifier = Modifier.clickable { estrellasSeleccionadas = n }
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.height(12.dp))
-
-                                Button(
-                                    onClick = {
-                                        if (estrellasSeleccionadas == 0) return@Button
-                                        calificando = true
-                                        scope.launch {
-                                            try {
-                                                client.post("${ApiConfig.BASE_URL}/peers/calificar") {
-                                                    header("Authorization", "Bearer $token")
-                                                    contentType(ContentType.Application.Json)
-                                                    setBody(
-                                                        "{\"asesorId\":${asesorRespuesta.autor.id}," +
-                                                        "\"solicitudId\":$solicitudId," +
-                                                        "\"estrellas\":$estrellasSeleccionadas}"
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                (1..5).forEach { n ->
+                                                    Text(
+                                                        text = if (n <= estrellasSeleccionadas) "★" else "☆",
+                                                        fontSize = 30.sp,
+                                                        color = if (n <= estrellasSeleccionadas) Color(0xFF8B6914)
+                                                                else Color(0xFFCCCCCC),
+                                                        modifier = Modifier.clickable { estrellasSeleccionadas = n }
                                                     )
                                                 }
-                                                calificacionEnviada = true
-                                            } catch (e: Exception) {
-                                                errorMsg = "Error al enviar la calificación."
                                             }
-                                            calificando = false
+
+                                            Spacer(Modifier.height(12.dp))
+
+                                            Button(
+                                                onClick = {
+                                                    if (estrellasSeleccionadas == 0) return@Button
+                                                    calificando = true
+                                                    scope.launch {
+                                                        try {
+                                                            client.post("${ApiConfig.BASE_URL}/peers/calificar") {
+                                                                header("Authorization", "Bearer $token")
+                                                                contentType(ContentType.Application.Json)
+                                                                setBody(
+                                                                    "{\"asesorId\":${resp.autor.id}," +
+                                                                    "\"solicitudId\":$solicitudId," +
+                                                                    "\"estrellas\":$estrellasSeleccionadas}"
+                                                                )
+                                                            }
+                                                            calificacionEnviada = true
+                                                            respuestaIdCalificando = null
+                                                        } catch (e: Exception) {
+                                                            errorMsg = "Error al enviar la calificación."
+                                                        }
+                                                        calificando = false
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                                shape = RoundedCornerShape(12.dp),
+                                                enabled = !calificando && estrellasSeleccionadas > 0,
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B6914))
+                                            ) {
+                                                if (calificando)
+                                                    CircularProgressIndicator(color = Color.White,
+                                                        modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                                else
+                                                    Text("Enviar calificación", color = Color.White,
+                                                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                            }
                                         }
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    enabled = !calificando && estrellasSeleccionadas > 0,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B6914))
-                                ) {
-                                    if (calificando)
-                                        CircularProgressIndicator(color = Color.White,
-                                            modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    else
-                                        Text("Enviar calificación", color = Color.White,
-                                            fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    }
                                 }
                             }
                         }

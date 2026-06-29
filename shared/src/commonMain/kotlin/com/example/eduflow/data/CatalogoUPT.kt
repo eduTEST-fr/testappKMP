@@ -20,6 +20,7 @@ object CatalogoUPT {
 
     val carreras: List<CarreraCatalogo> = listOf(
         CarreraCatalogo("Ingeniería en Sistemas Computacionales", materiasSistemas),
+        CarreraCatalogo("Ingeniería en Tecnologías de la Innovación", materiasTecnologiasInnovacion),
         CarreraCatalogo("Ingeniería Civil", materiasCivil),
         CarreraCatalogo("Ingeniería en Robótica", materiasRobotica),
         CarreraCatalogo("Ingeniería Industrial", materiasIndustrial),
@@ -43,38 +44,54 @@ object CatalogoUPT {
 
 private fun m(nombre: String, cuatrimestre: Int) = MateriaCatalogo(nombre, cuatrimestre)
 
-// --- Ingenieria en Sistemas Computacionales: 10 cuatrimestres, 6 materias c/u ---
+// --- Ingenieria en Sistemas Computacionales ---
+// Carrera real de la UPT (Tulancingo, Hidalgo): 10 cuatrimestres, ~63 materias
+// en total segun el plan de estudios oficial. El ultimo cuatrimestre es,
+// efectivamente, solo Estadia (no hay materias de aula). El programa de IoT
+// (Internet de las Cosas) es real desde el plan vigente a partir de 2019.
 private val materiasSistemas: List<MateriaCatalogo> = listOf(
     m("Calculo Diferencial", 1), m("Algebra Lineal", 1), m("Fundamentos de Programacion", 1),
     m("Taller de Sistemas Operativos", 1), m("Ingles I", 1), m("Habilidades del Pensamiento", 1),
+    m("Desarrollo Humano", 1),
 
     m("Calculo Integral", 2), m("Programacion Orientada a Objetos", 2), m("Estadistica y Probabilidad", 2),
-    m("Matematicas Discretas", 2), m("Ingles II", 2), m("Taller de Etica", 2),
+    m("Matematicas Discretas", 2), m("Ingles II", 2), m("Taller de Etica", 2), m("Herramientas Computacionales", 2),
 
     m("Estructura de Datos", 3), m("Calculo Vectorial", 3), m("Bases de Datos I", 3),
     m("Arquitectura de Computadoras", 3), m("Ingles III", 3), m("Contabilidad Financiera", 3),
+    m("Sistemas Digitales", 3),
 
     m("Bases de Datos II", 4), m("Programacion Web", 4), m("Sistemas Operativos", 4),
     m("Ecuaciones Diferenciales", 4), m("Redes de Computadoras I", 4), m("Ingles IV", 4),
+    m("Etica Profesional", 4),
 
     m("Programacion Movil", 5), m("Redes de Computadoras II", 5), m("Ingenieria de Software I", 5),
     m("Lenguajes y Automatas", 5), m("Sistemas Distribuidos", 5), m("Ingles V", 5),
+    m("Administracion de Bases de Datos", 5),
 
     m("Ingenieria de Software II", 6), m("Inteligencia Artificial", 6), m("Seguridad Informatica", 6),
     m("Programacion de Dispositivos Moviles", 6), m("Administracion de Proyectos de TI", 6), m("Ingles VI", 6),
+    m("Comercio Electronico", 6),
 
     m("Mineria de Datos", 7), m("Desarrollo Web Avanzado", 7), m("Computo en la Nube", 7),
     m("Calidad de Software", 7), m("Arquitectura de Software", 7), m("Ingles VII", 7),
+    m("Internet de las Cosas", 7),
 
-    m("Inteligencia de Negocios", 8), m("Aprendizaje Automatico", 8), m("Internet de las Cosas", 8),
-    m("Auditoria Informatica", 8), m("Gestion de Proyectos de Software", 8), m("Ingles VIII", 8),
+    m("Inteligencia de Negocios", 8), m("Aprendizaje Automatico", 8), m("Auditoria Informatica", 8),
+    m("Gestion de Proyectos de Software", 8), m("Ingles VIII", 8), m("Metodologia de la Investigacion", 8),
 
-    m("Computo Paralelo y Distribuido", 9), m("Topicos Avanzados de Programacion", 9),
-    m("Innovacion y Emprendimiento Tecnologico", 9), m("Estadia I", 9), m("Etica Profesional", 9), m("Ingles IX", 9),
+    m("Topicos Avanzados de Programacion", 9), m("Innovacion y Emprendimiento Tecnologico", 9),
+    m("Gestion de la Calidad", 9), m("Ingles IX", 9), m("Seminario de Titulacion", 9),
 
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10),
-    m("Gestion de la Innovacion", 10),
+    m("Estadia", 10),
 )
+
+// Nota: hasta hace poco la UPT impartia esta carrera como "Ingenieria en
+// Sistemas Computacionales"; el programa esta migrando al nombre "Ingenieria
+// en Tecnologias de la Innovacion". Mientras no haya un mapa curricular
+// propio y diferenciado publicado para el nuevo nombre, se deja como una
+// carrera separada que comparte el mismo plan de materias.
+private val materiasTecnologiasInnovacion: List<MateriaCatalogo> = materiasSistemas
 
 // --- Ingenieria Civil ---
 private val materiasCivil: List<MateriaCatalogo> = listOf(
@@ -87,7 +104,7 @@ private val materiasCivil: List<MateriaCatalogo> = listOf(
     m("Vias Terrestres II", 7), m("Puentes", 7), m("Administracion de la Construccion", 7), m("Impacto Ambiental", 7),
     m("Obras Hidraulicas", 8), m("Construccion Sustentable", 8), m("Gestion de Proyectos de Construccion", 8), m("Topicos de Geotecnia", 8),
     m("Planeacion Urbana", 9), m("Supervision de Obra", 9), m("Estadia I", 9), m("Etica Profesional", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Normatividad de la Construccion", 10),
+    m("Estadia", 10),
 )
 
 // --- Ingenieria en Robotica ---
@@ -101,7 +118,7 @@ private val materiasRobotica: List<MateriaCatalogo> = listOf(
     m("Inteligencia Artificial Aplicada", 7), m("Diseno Mecatronico", 7), m("Redes Industriales", 7), m("Manufactura Avanzada", 7),
     m("Automatizacion Industrial", 8), m("Robotica Movil", 8), m("Gestion de Proyectos", 8), m("Topicos de Mecatronica", 8),
     m("Programacion de Robots Industriales", 9), m("Estadia I", 9), m("Etica Profesional", 9), m("Sistemas SCADA", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Innovacion Tecnologica", 10),
+    m("Estadia", 10),
 )
 
 // --- Ingenieria Industrial ---
@@ -115,7 +132,7 @@ private val materiasIndustrial: List<MateriaCatalogo> = listOf(
     m("Simulacion de Sistemas", 7), m("Diseno de Plantas Industriales", 7), m("Sistemas de Manufactura", 7), m("Gestion Ambiental", 7),
     m("Manufactura Esbelta", 8), m("Automatizacion de Procesos", 8), m("Gestion de Proyectos Industriales", 8), m("Topicos de Calidad", 8),
     m("Cadena de Valor", 9), m("Estadia I", 9), m("Etica Profesional", 9), m("Innovacion y Mejora Continua", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Indicadores de Productividad", 10),
+    m("Estadia", 10),
 )
 
 // --- Ingenieria en Tecnologias de Manufactura ---
@@ -129,7 +146,7 @@ private val materiasManufactura: List<MateriaCatalogo> = listOf(
     m("Robotica Aplicada a la Manufactura", 7), m("Planeacion de la Produccion", 7), m("Logistica Industrial", 7), m("Topicos de Manufactura Digital", 7),
     m("Manufactura Sustentable", 8), m("Sistemas de Manufactura Inteligente", 8), m("Gestion de Proyectos", 8), m("Mejora Continua", 8),
     m("Estadia I", 9), m("Innovacion Tecnologica", 9), m("Etica Profesional", 9), m("Cadena de Suministro", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Industria 4.0", 10),
+    m("Estadia", 10),
 )
 
 // --- Ingenieria en Electronica y Telecomunicaciones ---
@@ -143,7 +160,7 @@ private val materiasElectronica: List<MateriaCatalogo> = listOf(
     m("Redes Opticas", 7), m("Comunicaciones Satelitales", 7), m("Seguridad en Redes", 7), m("Topicos de IoT", 7),
     m("Redes de Nueva Generacion", 8), m("Sistemas de Radiofrecuencia", 8), m("Gestion de Proyectos de Telecomunicaciones", 8), m("Regulacion de Telecomunicaciones", 8),
     m("Estadia I", 9), m("Innovacion Tecnologica", 9), m("Etica Profesional", 9), m("Redes 5G y Tecnologias Emergentes", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Auditoria de Telecomunicaciones", 10),
+    m("Estadia", 10),
 )
 
 // --- Ingenieria Financiera ---
@@ -157,7 +174,7 @@ private val materiasFinanciera: List<MateriaCatalogo> = listOf(
     m("Ingenieria Economica", 7), m("Mercado de Derivados", 7), m("Planeacion Financiera Estrategica", 7), m("Fiscal y Tributacion", 7),
     m("Finanzas Internacionales", 8), m("Modelos de Inversion", 8), m("Gestion de Portafolios", 8), m("Auditoria Financiera", 8),
     m("Estadia I", 9), m("Innovacion Financiera y Fintech", 9), m("Etica Profesional", 9), m("Analisis de Proyectos de Inversion", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Gobierno Corporativo", 10),
+    m("Estadia", 10),
 )
 
 // --- Licenciatura en Gestion Empresarial ---
@@ -171,7 +188,7 @@ private val materiasGestionEmpresarial: List<MateriaCatalogo> = listOf(
     m("Desarrollo Organizacional", 7), m("Logistica y Cadena de Suministro", 7), m("Auditoria Administrativa", 7), m("Etica Empresarial", 7),
     m("Innovacion y Emprendimiento", 8), m("Gestion de Proyectos", 8), m("Plan de Negocios", 8), m("Gestion del Talento", 8),
     m("Estadia I", 9), m("Negocios Digitales", 9), m("Etica Profesional", 9), m("Alta Direccion", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Modelos de Negocio", 10),
+    m("Estadia", 10),
 )
 
 // --- Licenciatura en Negocios Internacionales ---
@@ -185,7 +202,7 @@ private val materiasNegociosInternacionales: List<MateriaCatalogo> = listOf(
     m("Innovacion y Emprendimiento", 7), m("Estrategia de Negocios Internacionales", 7), m("Etica Empresarial", 7), m("Gestion del Talento", 7),
     m("Plan de Negocios Internacional", 8), m("Cadenas Globales de Valor", 8), m("Gestion de Proyectos", 8), m("Relaciones Comerciales Internacionales", 8),
     m("Estadia I", 9), m("Negocios Digitales", 9), m("Etica Profesional", 9), m("Mercados Emergentes", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Comercio Electronico Global", 10),
+    m("Estadia", 10),
 )
 
 // --- Licenciatura en Psicologia ---
@@ -199,5 +216,5 @@ private val materiasPsicologia: List<MateriaCatalogo> = listOf(
     m("Psicologia Clinica II", 7), m("Psicoterapia", 7), m("Seleccion y Capacitacion de Personal", 7), m("Investigacion Psicologica II", 7),
     m("Neuropsicologia", 8), m("Psicologia Familiar y de Pareja", 8), m("Desarrollo Organizacional", 8), m("Practicas Profesionales I", 8),
     m("Psicologia Comunitaria", 9), m("Estadia I", 9), m("Practicas Profesionales II", 9), m("Diagnostico Psicologico Integral", 9),
-    m("Estadia Profesional", 10), m("Taller de Titulacion", 10), m("Seminario de Investigacion", 10), m("Practicas Profesionales III", 10),
+    m("Estadia", 10),
 )

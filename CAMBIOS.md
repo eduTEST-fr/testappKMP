@@ -223,3 +223,28 @@ TTS). Resumen de lo que cambió:
    ahora separa el permiso de "eliminar solicitud" (solo Admin) del de
    "eliminar respuesta" (Admin, Asesor, o el propio autor de la respuesta),
    y usa la nueva ruta en vez de la de `/admin/...` que antes daba 403.
+
+---
+
+## EP10.2 — Materias reales UPT, calificación inline y etiqueta de Asesor
+
+1. **Materias reales de la UPT (Tulancingo, Hidalgo)**: se corrigió el plan
+   de Ingeniería en Sistemas Computacionales para que el 10° cuatrimestre
+   sea únicamente "Estadía" (sin materias de aula), consistente con el
+   modelo de Universidades Politécnicas. Se aplicó la misma corrección a
+   las otras 9 carreras del catálogo. Se agregó "Ingeniería en Tecnologías
+   de la Innovación" como carrera separada (la UPT está migrando el nombre
+   de Sistemas Computacionales a este programa); por ahora comparte el
+   mismo plan de materias hasta que haya un mapa curricular propio
+   publicado para el nuevo nombre.
+2. **Calificación de asesores — ahora funciona sin depender de cerrar la
+   solicitud.** Antes solo se podía calificar si la solicitud estaba
+   CERRADA, lo cual no es un requisito real del backend y ocultaba la
+   función casi siempre. Ahora, en cuanto un Asesor (o Admin) responde, el
+   alumno que hizo la pregunta puede tocar esa respuesta directamente y
+   aparece un panel inline con las estrellas para calificar — ya no hace
+   falta cerrar la solicitud primero.
+3. **Etiqueta verde "Asesor"**: las respuestas de un Asesor ahora muestran
+   una etiqueta verde con la palabra "Asesor" debajo de su nombre, en vez
+   de texto plano, para que se distingan de las respuestas de otros
+   alumnos.
