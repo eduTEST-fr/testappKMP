@@ -142,6 +142,15 @@ fun Routing.asesoriaRoutes() {
                 it[disponibilidadId] = req.disponibilidadId
                 it[Asesorias.fecha] = fecha
             }
+
+            // Avisamos al asesor: tiene una nueva solicitud esperando respuesta.
+            val nombreAlumno = Usuarios.selectAll().where { Usuarios.id eq alumnoId }
+                .firstOrNull()?.get(Usuarios.nombre) ?: "Un alumno"
+            crearNotificacion(
+                usuarioId = req.asesorId,
+                titulo = "Nueva solicitud de asesoría",
+                contenido = "$nombreAlumno solicitó una asesoría contigo para el $fecha"
+            )
             "OK"
         }
 

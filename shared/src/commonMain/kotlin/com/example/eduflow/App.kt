@@ -1,6 +1,7 @@
 package com.example.eduflow
 
 import androidx.compose.runtime.*
+import com.example.eduflow.notifications.NotificationScheduler
 import com.example.eduflow.storage.SesionStorage
 import com.example.eduflow.ui.*
 
@@ -23,10 +24,19 @@ fun App() {
     // Tras login, Asesor y Admin van directo a Peers; Alumno va a Dashboard
     fun pantallaInicial(): Pantalla {
         if (!SesionStorage.haySesion()) return Pantalla.LOGIN
+        // Hay sesión activa: prendemos la revisión periódica de notificaciones
+        // en segundo plano (en Web esto no hace nada).
+        NotificationScheduler.iniciar()
         return when (SesionStorage.obtenerRol()) {
             "ASESOR", "ADMIN" -> Pantalla.PEERS
             else -> Pantalla.DASHBOARD
         }
+    }
+
+    fun cerrarSesion() {
+        NotificationScheduler.detener()
+        SesionStorage.cerrarSesion()
+        pantalla = Pantalla.LOGIN
     }
 
     when (pantalla) {
@@ -50,7 +60,7 @@ fun App() {
             onVerPerfil    = { origenPerfil = Pantalla.DASHBOARD; pantalla = Pantalla.PERFIL },
             onVerNotificaciones = { pantalla = Pantalla.NOTIFICACIONES },
             onVerMisAsesorias   = { pantalla = Pantalla.MIS_ASESORIAS },
-            onCerrarSesion = { SesionStorage.cerrarSesion(); pantalla = Pantalla.LOGIN }
+            onCerrarSesion = { cerrarSesion() }
         )
         Pantalla.STUDYCAST -> StudyCastView(
             onVolver    = { pantalla = Pantalla.DASHBOARD },
@@ -78,7 +88,7 @@ fun App() {
             onVerStudyCast = { pantalla = Pantalla.STUDYCAST },
             onVerAudios    = { pantalla = Pantalla.AUDIOS },
             onVerPerfil    = { origenPerfil = Pantalla.PEERS; pantalla = Pantalla.PERFIL },
-            onCerrarSesion = { SesionStorage.cerrarSesion(); pantalla = Pantalla.LOGIN },
+            onCerrarSesion = { cerrarSesion() },
             onVerDetalle   = { id -> solicitudIdActual = id; pantalla = Pantalla.SOLICITUD_DETALLE },
             onVerTodosAsesores = { origenAsesores = Pantalla.PEERS; pantalla = Pantalla.ASESORES_LISTA },
             onVerPerfilAsesor  = { id -> asesorIdActual = id; origenAsesores = Pantalla.PEERS; pantalla = Pantalla.PERFIL_ASESOR },

@@ -9,6 +9,14 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 
+private fun crearNotificacion(usuarioId: Int, titulo: String, contenido: String) {
+    Notificaciones.insert {
+        it[Notificaciones.usuarioId] = usuarioId
+        it[Notificaciones.titulo] = titulo
+        it[Notificaciones.contenido] = contenido
+    }
+}
+
 fun Routing.peersRoutes() {
 
     // GET /peers/solicitudes — solicitudes abiertas, más recientes primero
@@ -203,12 +211,27 @@ fun Routing.peersRoutes() {
         }
 
         val id = transaction {
-            PeersRespuestas.insertAndGetId {
+            val nuevaId = PeersRespuestas.insertAndGetId {
                 it[PeersRespuestas.solicitudId] = solicitudId
                 it[autorId] = userId
                 it[contenido] = req.contenido
                 it[imagenBase64] = req.imagenBase64
             }.value
+
+            // Avisamos al autor de la solicitud (si alguien más le respondió, no a sí mismo).
+            val autorSolicitudId = PeersSolicitudes.selectAll()
+                .where { PeersSolicitudes.id eq solicitudId }
+                .firstOrNull()?.get(PeersSolicitudes.autorId)
+            if (autorSolicitudId != null && autorSolicitudId != userId) {
+                val nombreRespondedor = Usuarios.selectAll().where { Usuarios.id eq userId }
+                    .firstOrNull()?.get(Usuarios.nombre) ?: "Alguien"
+                crearNotificacion(
+                    usuarioId = autorSolicitudId,
+                    titulo = "$nombreRespondedor respondió tu solicitud",
+                    contenido = req.contenido
+                )
+            }
+            nuevaId
         }
         call.respond(HttpStatusCode.Created, mapOf("id" to id, "mensaje" to "Respuesta publicada"))
     }
@@ -300,6 +323,16 @@ fun Routing.peersRoutes() {
                 it[solicitudId] = req.solicitudId
                 it[estrellas] = req.estrellas
             }
+
+            // Aviso momentáneo para el asesor calificado, no requiere acción.
+            val nombreAlumno = Usuarios.selectAll().where { Usuarios.id eq alumnoId }
+                .firstOrNull()?.get(Usuarios.nombre) ?: "Un alumno"
+            val estrellitas = "★".repeat(req.estrellas)
+            crearNotificacion(
+                usuarioId = req.asesorId,
+                titulo = "Nueva calificación",
+                contenido = "$nombreAlumno te calificó con $estrellitas"
+            )
         }
         call.respond(mapOf("mensaje" to "Calificación registrada"))
     }
