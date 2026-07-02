@@ -88,10 +88,10 @@ fun Routing.authRoutes() {
             call.respond(HttpStatusCode.NotFound, mapOf("error" to "Usuario no encontrado"))
             return@get
         }
-        call.respond(mapOf(
-            "id"     to usuario[Usuarios.id].value,
-            "nombre" to usuario[Usuarios.nombre],
-            "rol"    to usuario[Usuarios.rol]
+        call.respond(UsuarioMeDto(
+            id     = usuario[Usuarios.id].value,
+            nombre = usuario[Usuarios.nombre],
+            rol    = usuario[Usuarios.rol]
         ))
     }
 }

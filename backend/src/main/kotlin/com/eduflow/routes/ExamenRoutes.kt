@@ -36,11 +36,13 @@ fun Routing.examenRoutes() {
         }
         val lista = transaction {
             Examenes.selectAll().where { Examenes.materiaId eq materiaId }
-                .map { mapOf(
-                    "id"     to it[Examenes.id].value,
-                    "nombre" to it[Examenes.nombre],
-                    "fecha"  to it[Examenes.fecha].toString()
-                )}
+                .map {
+                    ExamenResponse(
+                        id     = it[Examenes.id].value,
+                        nombre = it[Examenes.nombre],
+                        fecha  = it[Examenes.fecha].toString()
+                    )
+                }
         }
         call.respond(lista)
     }

@@ -22,13 +22,13 @@ fun Routing.adminPeersRoutes() {
                 .selectAll()
                 .orderBy(PeersSolicitudes.createdAt, SortOrder.DESC)
                 .map {
-                    mapOf(
-                        "id" to it[PeersSolicitudes.id].value,
-                        "titulo" to it[PeersSolicitudes.titulo],
-                        "estado" to it[PeersSolicitudes.estado],
-                        "materia" to (it[PeersSolicitudes.materia] ?: ""),
-                        "createdAt" to it[PeersSolicitudes.createdAt].toString(),
-                        "autor" to it[Usuarios.nombre]
+                    SolicitudAdminDto(
+                        id = it[PeersSolicitudes.id].value,
+                        titulo = it[PeersSolicitudes.titulo],
+                        estado = it[PeersSolicitudes.estado],
+                        materia = it[PeersSolicitudes.materia] ?: "",
+                        createdAt = it[PeersSolicitudes.createdAt].toString(),
+                        autor = it[Usuarios.nombre]
                     )
                 }
         }

@@ -28,6 +28,9 @@ data class MateriaDto(val id: Int, val nombre: String, val dificultad: Int)
 @Serializable
 data class ExamenRequest(val nombre: String, val fecha: String)
 
+@Serializable
+data class ExamenResponse(val id: Int, val nombre: String, val fecha: String)
+
 // --- EP7: Tarjetas y podcasts con IA ---
 @Serializable
 data class GenerarTarjetasRequest(
@@ -238,4 +241,29 @@ data class NotificacionDto(
     val contenido: String,
     val leida: Boolean,
     val createdAt: String
+)
+
+@Serializable
+data class SolicitudAdminDto(
+    val id: Int,
+    val titulo: String,
+    val estado: String,
+    val materia: String,
+    val createdAt: String,
+    val autor: String
+)
+
+@Serializable
+data class RedApoyoDto(
+    val id: Int,
+    val tipo: String,
+    val materia: String,
+    val mensaje: String
+)
+
+@Serializable
+data class UsuarioMeDto(
+    val id: Int,
+    val nombre: String,
+    val rol: String
 )
