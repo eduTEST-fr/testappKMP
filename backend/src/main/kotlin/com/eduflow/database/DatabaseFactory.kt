@@ -9,11 +9,13 @@ object DatabaseFactory {
     fun init() {
         // Railway inyecta estas variables automáticamente al conectar el servicio MySQL.
         // Los valores de respaldo (?:) solo sirven para pruebas locales, nunca se usan en producción.
-        val host     = System.getenv("MYSQLHOST")     ?: "thomas.proxy.rlwy.net"
-        val port     = System.getenv("MYSQLPORT")     ?: "12461"
+        // En Railway estas variables las inyecta el propio servicio de MySQL.
+        // En local, defínelas en tu entorno o en un .env (NUNCA en el código).
+        val host     = System.getenv("MYSQLHOST")     ?: "localhost"
+        val port     = System.getenv("MYSQLPORT")     ?: "3306"
         val database = System.getenv("MYSQLDATABASE") ?: "railway"
         val user     = System.getenv("MYSQLUSER")     ?: "root"
-        val password = System.getenv("MYSQLPASSWORD") ?: "qkEQHAIbXvEaICkzBdxKChtiDQFkSniM"
+        val password = System.getenv("MYSQLPASSWORD") ?: ""
 
         // IMPORTANTE: la URL se construye con las variables de arriba.
         // Antes estaba hardcodeada con un host/puerto fijo y eso es lo que

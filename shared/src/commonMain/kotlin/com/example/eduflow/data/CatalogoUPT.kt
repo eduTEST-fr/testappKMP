@@ -33,7 +33,10 @@ object CatalogoUPT {
         carreras.find { it.nombre == carrera }?.materias ?: emptyList()
 
     fun materiasPorCuatrimestre(carrera: String): Map<Int, List<MateriaCatalogo>> =
-        materiasDe(carrera).groupBy { it.cuatrimestre }.toSortedMap()
+        materiasDe(carrera).groupBy { it.cuatrimestre }
+            .toList()
+            .sortedBy { it.first }
+            .toMap()
 }
 
 private fun m(nombre: String, cuatrimestre: Int) = MateriaCatalogo(nombre, cuatrimestre)

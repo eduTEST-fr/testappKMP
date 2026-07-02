@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
 import com.example.eduflow.storage.SesionStorage
+import com.example.eduflow.util.formatUnDecimal
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -120,7 +121,7 @@ fun PerfilAsesorView(asesorId: Int, onVolver: () -> Unit, onAgendar: (Int) -> Un
                         fontSize = 13.sp, color = TextoSecundario, modifier = Modifier.padding(top = 4.dp))
                     if (totalCalif > 0) {
                         Spacer(Modifier.height(8.dp))
-                        Text("★ ${"%.1f".format(promedio)}  ($totalCalif calificaciones)",
+                        Text("★ ${formatUnDecimal(promedio)}  ($totalCalif calificaciones)",
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B6914))
                     }
                 }

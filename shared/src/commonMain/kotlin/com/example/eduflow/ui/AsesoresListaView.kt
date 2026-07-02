@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
 import com.example.eduflow.storage.SesionStorage
+import com.example.eduflow.util.formatUnDecimal
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -106,7 +107,7 @@ fun AsesoresListaView(onVolver: () -> Unit, onVerPerfilAsesor: (Int) -> Unit) {
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     if (asesor.totalCalif > 0)
-                                        Text("★ ${"%.1f".format(asesor.promedio)}", fontSize = 12.sp,
+                                        Text("★ ${formatUnDecimal(asesor.promedio)}", fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold, color = Color(0xFF8B6914))
                                     if (asesor.permiteAsesoria) {
                                         Spacer(Modifier.height(4.dp))

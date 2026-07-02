@@ -211,7 +211,7 @@ fun HorarioView() {
         }
 
         scope.launch {
-            consejo = withContext(Dispatchers.IO) {
+            consejo = withContext(Dispatchers.Default) {
                 ConsejosApi().obtenerConsejo()
             }
         }
