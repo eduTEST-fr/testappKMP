@@ -1,0 +1,17 @@
+EDUFLOW — MEJORAS DE MATERIAS Y AUDIO
+
+Base: versión final con notificaciones y sensor de proximidad.
+
+Incluye:
+- Portadas Canvas mejoradas y vista previa al crear materias.
+- Portada compacta en el Dashboard.
+- Reproductor Android con play/pausa, -10 s, +10 s, progreso y duración.
+- Un solo episodio reproduciéndose a la vez.
+- Marcado automático como escuchado al terminar.
+- Validación JWT y propiedad en rutas de podcasts.
+- ApiConfig: https://testappkmp-production-e13d.up.railway.app
+
+No hay cambios de esquema ni tablas nuevas. Solo debes subir el repositorio,
+redeplegar el backend y volver a compilar/instalar la aplicación Android.
+
+Consulta docs/MEJORAS_MATERIAS_AUDIO.md para las pruebas recomendadas.

@@ -355,6 +355,8 @@ private fun SubcarpetaAudiosDetalle(
 
 @Composable
 private fun EpisodioCard(episodio: Episodio, token: String, onCompletado: () -> Unit) {
+    var mostrarReproductor by remember(episodio.id) { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = VerdePrimario),
@@ -371,7 +373,60 @@ private fun EpisodioCard(episodio: Episodio, token: String, onCompletado: () -> 
             if (episodio.guion.isNotEmpty())
                 Text(episodio.guion.take(120) + "...", fontSize = 12.sp,
                     color = Color.White.copy(0.72f), modifier = Modifier.padding(top = 6.dp))
+
             Spacer(Modifier.height(16.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { mostrarReproductor = !mostrarReproductor },
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(17.dp))
+                            .background(VerdePrimario),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (mostrarReproductor) "—" else "▶", color = Color.White,
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(11.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (mostrarReproductor) "Ocultar reproductor" else "Escuchar episodio",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = VerdePrimario
+                        )
+                        Text(
+                            if (mostrarReproductor) "Los controles permanecen disponibles aquí"
+                            else "Reproducir, pausar o saltar 10 segundos",
+                            fontSize = 10.sp,
+                            color = TextoSecundario
+                        )
+                    }
+                    Text(if (mostrarReproductor) "⌃" else "⌄", color = VerdePrimario, fontSize = 16.sp)
+                }
+            }
+
+            if (mostrarReproductor) {
+                Spacer(Modifier.height(10.dp))
+                AudioPlayerWidget(
+                    audioUrl = episodio.audioUrl,
+                    token = token,
+                    onCompleted = {
+                        if (!episodio.completado) onCompletado()
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
             if (episodio.completado) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

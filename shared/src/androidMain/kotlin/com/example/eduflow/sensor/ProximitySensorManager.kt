@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.example.eduflow.notifications.AppContextHolder
 
+/** Implementación Android del repositorio mediante SensorManager. */
 class ProximitySensorManager : SensorRepository {
     private val sensorManager = AppContextHolder.appContext
         .getSystemService(Context.SENSOR_SERVICE) as SensorManager

@@ -271,3 +271,32 @@ TTS). Resumen de lo que cambió:
    puede calificar más de una respuesta por solicitud (si respondieron
    varios asesores), y cada una que ya se calificó muestra una etiqueta
    "★ Calificada" en vez del botón de calificar.
+
+---
+
+## EP12 — Portadas de materias y reproductor de StudyCast
+
+1. **Portadas automáticas mejoradas:** `MateriaIlustracion.kt` ahora genera
+   composiciones más limpias y coherentes con EduFlow, con categorías,
+   paletas suaves, formas de fondo e iconos vectoriales dibujados con Canvas.
+   Se ampliaron las palabras clave para materias de tecnología, comunicación,
+   negocios, ciencias, idiomas y creatividad.
+2. **Vista previa al crear una materia:** el formulario muestra la portada
+   mientras el usuario escribe el nombre. La misma identidad visual se usa en
+   las tarjetas compactas del Dashboard y en la biblioteca de audios.
+3. **Reproductor Android restaurado:** cada episodio vuelve a incluir
+   reproducción real con MediaPlayer, progreso, tiempo actual, duración,
+   reproducir/pausar, retroceder 10 segundos, adelantar 10 segundos y reintento
+   cuando falla la descarga. El MP3 se carga solo al abrir el reproductor,
+   evitando descargar todos los episodios de una carpeta al mismo tiempo.
+4. **Un solo episodio a la vez:** al iniciar otro audio, el anterior se pausa
+   automáticamente. Al terminar, el episodio se marca como escuchado.
+5. **Seguridad del módulo de podcasts:** las rutas validan JWT y comprueban que
+   la materia, examen y episodio pertenezcan al usuario antes de listar,
+   generar, reproducir o marcar un audio.
+6. **Validación de materias:** el backend limpia el nombre y exige dificultad
+   entre 1 y 10 antes de insertar el registro.
+7. **Configuración actualizada:** `ApiConfig.BASE_URL` apunta a
+   `https://testappkmp-production-e13d.up.railway.app`.
+8. **Permisos simplificados:** se retiró el permiso de almacenamiento que no se
+   utilizaba; el MP3 temporal se guarda en la caché interna de Android.

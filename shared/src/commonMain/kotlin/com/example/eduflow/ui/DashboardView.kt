@@ -125,7 +125,7 @@ fun DashboardView(
                         client.post("${ApiConfig.BASE_URL}/materias") {
                             header("Authorization", "Bearer $token")
                             contentType(ContentType.Application.Json)
-                            setBody("""{"nombre":"$nombre","dificultad":$dificultad}""")
+                            setBody("""{"nombre":"${escaparJson(nombre.trim())}","dificultad":$dificultad}""")
                         }
                         cargarMaterias()
                         mostrarFormulario = false
@@ -860,17 +860,6 @@ fun MateriaCard(nombre: String, dificultad: Int, bloqueada: Boolean = false, com
         dificultad >= 5 -> Color(0xFF8B6914)
         else            -> Color(0xFF4A9060)
     }
-    val simbolo = when {
-        nombre.contains("mat", ignoreCase = true) ||
-                nombre.contains("calc", ignoreCase = true) ||
-                nombre.contains("alg", ignoreCase = true)  -> "∑"
-        nombre.contains("prog", ignoreCase = true) ||
-                nombre.contains("cod", ignoreCase = true)  -> "<>"
-        nombre.contains("fis", ignoreCase = true)  -> "λ"
-        nombre.contains("quim", ignoreCase = true) -> "⚗"
-        else                                       -> "◈"
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -887,16 +876,11 @@ fun MateriaCard(nombre: String, dificultad: Int, bloqueada: Boolean = false, com
                 modifier = Modifier.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFDDE8E0)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(simbolo, fontSize = 18.sp, color = VerdePrimario,
-                        fontWeight = FontWeight.Bold)
-                }
+                MateriaIlustracion(
+                    nombre = nombre,
+                    compacta = true,
+                    modifier = Modifier.size(48.dp)
+                )
                 Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(nombre, fontSize = 15.sp,
@@ -964,13 +948,18 @@ fun AgregarMateriaDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(28.dp)
+                .padding(24.dp)
+                .heightIn(max = 640.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(16.dp)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text("Nueva materia", fontSize = 20.sp,
                     fontWeight = FontWeight.Bold, color = TextoPrimario)
                 Text("Agrégala a tus sesiones de hoy",
@@ -997,6 +986,21 @@ fun AgregarMateriaDialog(
                 )
 
                 Spacer(Modifier.height(14.dp))
+                Text(
+                    "Vista previa automática",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextoSecundario,
+                    modifier = Modifier.padding(bottom = 7.dp)
+                )
+                MateriaIlustracion(
+                    nombre = nombre,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 Text("Nivel de dificultad (1-10)", fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold, color = TextoPrimario,
@@ -1040,10 +1044,10 @@ fun AgregarMateriaDialog(
                         onClick = {
                             val nivel = dificultad.toIntOrNull()
                             when {
-                                nombre.isEmpty()             -> errorMsg = "Escribe el nombre"
+                                nombre.isBlank()             -> errorMsg = "Escribe el nombre"
                                 nivel == null || nivel !in 1..10 ->
                                     errorMsg = "Ingresa un número del 1 al 10"
-                                else -> onGuardar(nombre, nivel)
+                                else -> onGuardar(nombre.trim(), nivel)
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp),

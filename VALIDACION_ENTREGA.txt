@@ -1,0 +1,21 @@
+EDUFLOW — VALIDACIÓN DE ENTREGA
+
+Versión base: EduFlow final con notificaciones y sensor de proximidad.
+URL configurada: https://testappkmp-production-e13d.up.railway.app
+
+Cambios incluidos:
+- Portadas Canvas mejoradas y vista previa al crear materias.
+- Reproductor Android restaurado con reproducir/pausar, -10 s, +10 s, progreso y duración.
+- Descarga autenticada del MP3 a la caché interna.
+- Un solo episodio activo a la vez y marcado automático como escuchado.
+- Validaciones de propiedad/JWT para podcasts y validación de materias.
+
+Revisión realizada:
+- Comparación contra la versión final anterior.
+- Verificación de llaves/paréntesis en archivos Kotlin modificados.
+- Revisión de referencias expect/actual para Android, JS y Wasm.
+- Verificación de la nueva URL en ApiConfig y ausencia de URLs antiguas.
+- Integridad del ZIP comprobada con unzip -t.
+
+Limitación del entorno:
+La compilación Gradle completa no pudo ejecutarse porque este entorno no tiene acceso a services.gradle.org para descargar Gradle 9.1.0. Debe sincronizarse en Android Studio y desplegarse nuevamente el backend en Railway.

@@ -39,14 +39,19 @@ fun Routing.materiaRoutes() {
             return@post
         }
         val req = call.receive<MateriaRequest>()
+        val nombreLimpio = req.nombre.trim().take(100)
+        if (nombreLimpio.isBlank() || req.dificultad !in 1..10) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Nombre o dificultad inválidos"))
+            return@post
+        }
         val id = transaction {
             Materias.insertAndGetId {
                 it[usuarioId]  = userId
-                it[nombre]     = req.nombre
+                it[nombre]     = nombreLimpio
                 it[dificultad] = req.dificultad
             }.value
         }
-        call.respond(HttpStatusCode.Created, MateriaDto(id, req.nombre, req.dificultad))
+        call.respond(HttpStatusCode.Created, MateriaDto(id, nombreLimpio, req.dificultad))
     }
 
     // DELETE /materias/{id}

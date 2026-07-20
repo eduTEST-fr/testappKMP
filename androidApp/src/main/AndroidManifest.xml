@@ -4,9 +4,8 @@
     <!-- OBLIGATORIO para Ktor: llamadas a la API de Groq -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Para guardar el audio WAV temporalmente en cache -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
+    <!-- Los audios se guardan temporalmente en la caché interna de la app;
+         no se requiere permiso de almacenamiento. -->
 
     <!-- Necesario desde Android 13 para poder mostrar notificaciones en la barra del sistema -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
