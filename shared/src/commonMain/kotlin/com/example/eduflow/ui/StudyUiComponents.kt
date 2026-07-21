@@ -118,7 +118,15 @@ private fun NavIcon(icono: NavIcono, selected: Boolean, modifier: Modifier = Mod
                 drawLine(color, Offset(w * .34f, h * .56f), Offset(w * .59f, h * .56f), s * .7f, StrokeCap.Round)
             }
             NavIcono.AUDIOS -> {
-                drawArc(color, 180f, 180f, false, Offset(w * .18f, h * .18f), Size(w * .64f, h * .62f), Stroke(s, cap = StrokeCap.Round))
+                drawArc(
+                    color = color,
+                    startAngle = 180f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = Offset(w * .18f, h * .18f),
+                    size = Size(w * .64f, h * .62f),
+                    style = Stroke(s, cap = StrokeCap.Round)
+                )
                 drawRoundRect(color, Offset(w * .12f, h * .48f), Size(w * .18f, h * .30f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f))
                 drawRoundRect(color, Offset(w * .70f, h * .48f), Size(w * .18f, h * .30f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .06f))
             }
