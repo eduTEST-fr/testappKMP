@@ -626,7 +626,7 @@ fun DashboardView(
                 ) {
                     // Logo
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        EduFlowMark(modifier = Modifier.size(38.dp))
+                        EduFlowBrandIcon(modifier = Modifier.size(40.dp), padding = 2)
                         Spacer(Modifier.width(10.dp))
                         Text("EduFlow", fontSize = 16.sp,
                             fontWeight = FontWeight.Bold, color = VerdePrimario)

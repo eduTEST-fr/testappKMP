@@ -433,7 +433,7 @@ private fun PeersAsesorView(
                                 modifier = Modifier.padding(top = 3.dp)
                             )
                             Text(
-                                "Aquí puedes responder dudas y administrar tus asesorías. Los materiales del alumno permanecen privados.",
+                                "Consulta tus solicitudes, responde dudas y organiza tus próximas asesorías desde un solo lugar.",
                                 fontSize = 11.sp, color = Color.White.copy(alpha = .78f), lineHeight = 16.sp,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
@@ -506,7 +506,7 @@ private fun PeersAsesorView(
                 ) {
                     Column(Modifier.fillMaxHeight().padding(24.dp).windowInsetsPadding(WindowInsets.systemBars)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            EduFlowMark(Modifier.size(40.dp))
+                            EduFlowBrandIcon(Modifier.size(42.dp), padding = 2)
                             Spacer(Modifier.width(10.dp))
                             Text("EduFlow", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                         }

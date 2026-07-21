@@ -1,6 +1,7 @@
 package com.example.eduflow.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import eduflow.shared.generated.resources.Res
+import eduflow.shared.generated.resources.eduflow_icon
+import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Clock
 
 /** Marca vectorial propia de EduFlow: libro abierto + hoja de progreso. */
@@ -64,6 +68,27 @@ fun EduFlowMark(
             )
             drawLine(color, Offset(w * 0.53f, h * 0.30f), Offset(w * 0.67f, h * 0.12f), stroke * 0.75f, StrokeCap.Round)
         }
+    }
+}
+
+/** Icono oficial de EduFlow reutilizado desde los recursos de la aplicación. */
+@Composable
+fun EduFlowBrandIcon(
+    modifier: Modifier = Modifier,
+    background: Color = Color.Transparent,
+    padding: Int = 4
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(background),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.eduflow_icon),
+            contentDescription = "Logo de EduFlow",
+            modifier = Modifier.fillMaxSize().padding(padding.dp)
+        )
     }
 }
 

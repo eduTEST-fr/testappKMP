@@ -50,7 +50,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
 
             Spacer(Modifier.height(48.dp))
 
-            EduFlowMark(modifier = Modifier.size(68.dp))
+            EduFlowBrandIcon(modifier = Modifier.size(78.dp), padding = 2)
 
             Spacer(Modifier.height(12.dp))
             Text("EduFlow", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)

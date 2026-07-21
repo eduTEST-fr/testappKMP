@@ -51,10 +51,9 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
         ) {
             Spacer(Modifier.height(64.dp))
 
-            EduFlowMark(
-                modifier = Modifier.size(80.dp),
-                color = VerdePrimario,
-                background = Color(0xFFDDE8E0)
+            EduFlowBrandIcon(
+                modifier = Modifier.size(88.dp),
+                padding = 2
             )
 
             Spacer(Modifier.height(16.dp))
