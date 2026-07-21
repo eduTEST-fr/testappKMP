@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
 import com.example.eduflow.storage.SesionStorage
+import com.example.eduflow.storage.PerfilStorage
 import com.example.eduflow.util.formatUnDecimal
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -32,7 +33,8 @@ import kotlinx.serialization.json.Json
 @Serializable
 internal data class AutorApiDto(
     val id: Int, val nombre: String, val carrera: String = "",
-    val cuatrimestre: Int = 1, val rol: String = "ALUMNO"
+    val cuatrimestre: Int = 1, val rol: String = "ALUMNO",
+    val avatarId: String = "student_buho"
 )
 
 @Serializable
@@ -52,6 +54,21 @@ private data class MentorApiDto(
 private data class AdminSolDto(
     val id: Int, val titulo: String, val estado: String,
     val materia: String = "", val createdAt: String = "", val autor: String = ""
+)
+
+@Serializable
+private data class PerfilPeersDto(
+    val avatarId: String = "student_buho",
+    val rol: String = "ALUMNO",
+    val grado: String = "LICENCIATURA",
+    val especialidad: String = "",
+    val permiteAsesoria: Boolean = false
+)
+
+@Serializable
+private data class AsesoriaPanelDto(
+    val id: Int,
+    val estado: String = "PENDIENTE"
 )
 
 private val jsonPeers = Json { ignoreUnknownKeys = true }
@@ -128,6 +145,7 @@ private fun PeersAlumnoView(
     var mostrarNueva  by remember { mutableStateOf(false) }
     var generando     by remember { mutableStateOf(false) }
     var errorMsg      by remember { mutableStateOf("") }
+    var avatarId      by remember { mutableStateOf(PerfilStorage.obtenerAvatar()) }
 
     suspend fun cargar() {
         cargando = true
@@ -138,6 +156,14 @@ private fun PeersAlumnoView(
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
             solicitudes = jsonPeers.decodeFromString(rs)
+            try {
+                val rp = client.get("${ApiConfig.BASE_URL}/peers/perfil") {
+                    header("Authorization", "Bearer $token")
+                }.bodyAsText()
+                val perfil = jsonPeers.decodeFromString<PerfilPeersDto>(rp)
+                avatarId = perfil.avatarId
+                PerfilStorage.guardarAvatar(avatarId)
+            } catch (_: Exception) { }
         } catch (e: Exception) { errorMsg = "No se pudo cargar la Red de Apoyo." }
         cargando = false
     }
@@ -176,15 +202,13 @@ private fun PeersAlumnoView(
 
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onVolver)
                 Spacer(Modifier.weight(1f))
                 Text("EduFlow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
                 Box(modifier = Modifier.size(36.dp).clip(CircleShape).clickable { onVerPerfil() },
                     contentAlignment = Alignment.Center) {
-                    AvatarIcono(avatarId = "avatar_1", sizeDp = 36)
+                    AvatarIcono(avatarId = avatarId, sizeDp = 36)
                 }
             }
 
@@ -302,10 +326,10 @@ private fun PeersAlumnoView(
             color = Beige, shadowElevation = 8.dp) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly) {
-                BottomNavItem("Inicio",     false, "⊞", onVolver)
-                BottomNavItem("StudyCast",  false, "▶", onVerStudyCast)
-                BottomNavItem("Audio",      false, "♪", onVerAudios)
-                BottomNavItem("Pares",      true,  "⊙")
+                BottomNavItem("Inicio", false, NavIcono.INICIO, onVolver)
+                BottomNavItem("Tarjetas", false, NavIcono.TARJETAS, onVerStudyCast)
+                BottomNavItem("Audios", false, NavIcono.AUDIOS, onVerAudios)
+                BottomNavItem("Comunidad", true, NavIcono.COMUNIDAD)
             }
         }
     }
@@ -320,11 +344,14 @@ private fun PeersAsesorView(
     onVerPerfil: () -> Unit
 ) {
     val client = remember { HttpClient() }
-    val token  = SesionStorage.obtenerToken() ?: ""
+    val token = SesionStorage.obtenerToken() ?: ""
 
     var solicitudes by remember { mutableStateOf<List<SolicitudApiDto>>(emptyList()) }
-    var cargando    by remember { mutableStateOf(true) }
-    var errorMsg    by remember { mutableStateOf("") }
+    var asesorias by remember { mutableStateOf<List<AsesoriaPanelDto>>(emptyList()) }
+    var perfil by remember { mutableStateOf(PerfilPeersDto(rol = "ASESOR")) }
+    var cargando by remember { mutableStateOf(true) }
+    var errorMsg by remember { mutableStateOf("") }
+    var mostrarMenu by remember { mutableStateOf(false) }
 
     suspend fun cargar() {
         cargando = true
@@ -333,33 +360,50 @@ private fun PeersAsesorView(
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
             solicitudes = jsonPeers.decodeFromString(resp)
-        } catch (e: Exception) { errorMsg = "Error al cargar solicitudes." }
+
+            val perfilResp = client.get("${ApiConfig.BASE_URL}/peers/perfil") {
+                header("Authorization", "Bearer $token")
+            }.bodyAsText()
+            perfil = jsonPeers.decodeFromString(perfilResp)
+
+            val asesoriasResp = client.get("${ApiConfig.BASE_URL}/asesorias/mis-asesorias") {
+                header("Authorization", "Bearer $token")
+            }.bodyAsText()
+            asesorias = jsonPeers.decodeFromString(asesoriasResp)
+        } catch (_: Exception) {
+            errorMsg = "No se pudo actualizar el panel del asesor."
+        }
         cargando = false
     }
 
     LaunchedEffect(Unit) { cargar() }
 
-    var mostrarMenu by remember { mutableStateOf(false) }
+    val pendientes = asesorias.count { it.estado == "PENDIENTE" }
+    val aceptadas = asesorias.count { it.estado == "ACEPTADA" }
+    val gestionadas = asesorias.count { it.estado != "PENDIENTE" }
+    val totalActividad = (solicitudes.size + asesorias.size).coerceAtLeast(1)
+    val avatarAsesor = avatarAsesorPorGrado(perfil.grado)
 
-    Box(modifier = Modifier.fillMaxSize().background(Beige)
-        .windowInsetsPadding(WindowInsets.systemBars)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-
-            // Barra superior con hamburger igual que Dashboard
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.clickable { mostrarMenu = true }) {
-                    repeat(3) {
-                        Box(Modifier.width(22.dp).height(2.dp)
-                            .background(VerdePrimario, RoundedCornerShape(1.dp)))
-                    }
+    Box(
+        modifier = Modifier.fillMaxSize().background(Beige).windowInsetsPadding(WindowInsets.systemBars)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 15.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.clickable { mostrarMenu = true }.padding(4.dp)
+                ) {
+                    repeat(3) { Box(Modifier.width(22.dp).height(2.dp).background(VerdePrimario, RoundedCornerShape(1.dp))) }
                 }
                 Spacer(Modifier.weight(1f))
-                Text("EduFlow — Asesor", fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold, color = VerdePrimario)
+                Text("Panel del asesor", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(22.dp))
+                Box(Modifier.size(40.dp).clip(CircleShape).clickable { onVerPerfil() }) {
+                    AvatarIcono(avatarAsesor, 40)
+                }
             }
 
             if (cargando) {
@@ -369,103 +413,178 @@ private fun PeersAsesorView(
                 return@Column
             }
 
-            Column(modifier = Modifier.fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = VerdePrimario)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Panel Asesor", fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("${solicitudes.size} solicitudes abiertas. Pulsa una para responder o cerrarla.",
-                            fontSize = 12.sp, color = Color.White.copy(0.85f),
-                            modifier = Modifier.padding(top = 4.dp))
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Surface(modifier = Modifier.fillMaxWidth().clickable { onVerMisAsesorias() },
-                    shape = RoundedCornerShape(14.dp), color = Color.White) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Mis Asesorías", fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold, color = TextoPrimario)
-                            Text("Revisa, acepta o cancela las asesorías agendadas contigo.",
-                                fontSize = 11.sp, color = TextoSecundario, modifier = Modifier.padding(top = 2.dp))
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp).padding(bottom = 28.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = VerdePrimario)
+                ) {
+                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AvatarIcono(avatarAsesor, 68)
+                        Spacer(Modifier.width(15.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Hola, ${SesionStorage.obtenerNombre()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                "${etiquetaGrado(perfil.grado)}${perfil.especialidad.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}",
+                                fontSize = 12.sp, color = Color.White.copy(alpha = .82f),
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                            Text(
+                                "Aquí puedes responder dudas y administrar tus asesorías. Los materiales del alumno permanecen privados.",
+                                fontSize = 11.sp, color = Color.White.copy(alpha = .78f), lineHeight = 16.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
                         }
-                        Text("→", fontSize = 18.sp, color = VerdePrimario)
                     }
                 }
 
                 Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    MetricaAsesor("Dudas", solicitudes.count { it.estado == "ABIERTA" }.toString(), "por atender", Modifier.weight(1f))
+                    MetricaAsesor("Asesorías", pendientes.toString(), "pendientes", Modifier.weight(1f))
+                    MetricaAsesor("Aceptadas", aceptadas.toString(), "confirmadas", Modifier.weight(1f))
+                }
 
-                if (errorMsg.isNotEmpty())
-                    Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 10.dp))
-
-                if (solicitudes.isEmpty())
-                    Text("No hay solicitudes abiertas.", fontSize = 13.sp, color = TextoSecundario)
-                else
-                    solicitudes.forEach { sol ->
-                        SolicitudCard(sol = sol, onVerDetalle = onVerDetalle)
-                        Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(18.dp))
+                Text("Actividad académica", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                Text("Distribución de tus tareas recientes", fontSize = 11.sp, color = TextoSecundario, modifier = Modifier.padding(top = 2.dp, bottom = 11.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                        BarraActividadAsesor("Solicitudes abiertas", solicitudes.count { it.estado == "ABIERTA" }, totalActividad)
+                        BarraActividadAsesor("Asesorías aceptadas", aceptadas, totalActividad)
+                        BarraActividadAsesor("Asesorías gestionadas", gestionadas, totalActividad)
                     }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AccesoAsesor(
+                        titulo = "Mis asesorías",
+                        descripcion = "Aceptar, cancelar o consultar agenda",
+                        modifier = Modifier.weight(1f),
+                        onClick = onVerMisAsesorias
+                    )
+                    AccesoAsesor(
+                        titulo = "Mi perfil",
+                        descripcion = "Grado, especialidad y disponibilidad",
+                        modifier = Modifier.weight(1f),
+                        onClick = onVerPerfil
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+                Text("Solicitudes de la comunidad", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                Text("Selecciona una para responder o cerrarla", fontSize = 11.sp, color = TextoSecundario, modifier = Modifier.padding(top = 2.dp, bottom = 11.dp))
+                if (errorMsg.isNotBlank()) Text(errorMsg, color = Color(0xFFB00020), fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
+                if (solicitudes.isEmpty()) {
+                    Surface(shape = RoundedCornerShape(15.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+                        Text("No hay solicitudes abiertas por el momento.", fontSize = 13.sp, color = TextoSecundario, modifier = Modifier.padding(18.dp))
+                    }
+                } else {
+                    solicitudes.take(8).forEach { solicitud ->
+                        SolicitudCard(sol = solicitud, onVerDetalle = onVerDetalle)
+                        Spacer(Modifier.height(9.dp))
+                    }
+                }
             }
         }
 
-        // Menú lateral (igual que Dashboard)
         if (mostrarMenu) {
-            Box(modifier = Modifier.fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
-                .clickable { mostrarMenu = false }) {
-                Card(modifier = Modifier.fillMaxHeight().width(260.dp)
-                    .align(Alignment.CenterStart).clickable(enabled = false) {},
-                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(16.dp)) {
-                    Column(modifier = Modifier.fillMaxHeight().padding(24.dp)
-                        .windowInsetsPadding(WindowInsets.systemBars)) {
-                        Text("EduFlow", fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold, color = VerdePrimario)
-                        Spacer(Modifier.height(24.dp))
-                        Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFDDE8E0)) {
-                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(18.dp))
-                                    .background(VerdePrimario), contentAlignment = Alignment.Center) {
-                                    Text(SesionStorage.obtenerNombre().take(1).uppercase(),
-                                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = .38f)).clickable { mostrarMenu = false }
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxHeight().width(272.dp).align(Alignment.CenterStart).clickable(enabled = false) {},
+                    shape = RoundedCornerShape(topEnd = 26.dp, bottomEnd = 26.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.fillMaxHeight().padding(24.dp).windowInsetsPadding(WindowInsets.systemBars)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            EduFlowMark(Modifier.size(40.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text("EduFlow", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+                        }
+                        Spacer(Modifier.height(26.dp))
+                        Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFFDDE8E0)) {
+                            Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AvatarIcono(avatarAsesor, 42)
                                 Spacer(Modifier.width(10.dp))
                                 Column {
-                                    Text("Asesor", fontSize = 11.sp, color = TextoSecundario)
-                                    Text(SesionStorage.obtenerNombre(), fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                                    Text(etiquetaGrado(perfil.grado), fontSize = 11.sp, color = TextoSecundario)
+                                    Text(SesionStorage.obtenerNombre(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextoPrimario)
                                 }
                             }
                         }
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = { mostrarMenu = false; onVerPerfil() },
+                        OutlinedButton(
+                            onClick = { mostrarMenu = false; onVerPerfil() },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
-                            border = BorderStroke(1.dp, VerdePrimario)) {
-                            Text("Mi perfil", fontWeight = FontWeight.SemiBold)
-                        }
+                            shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, VerdePrimario)
+                        ) { Text("Mi perfil", color = VerdePrimario, fontWeight = FontWeight.SemiBold) }
                         Spacer(Modifier.height(10.dp))
-                        OutlinedButton(onClick = { mostrarMenu = false; onCerrarSesion() },
+                        OutlinedButton(
+                            onClick = { mostrarMenu = false; onVerMisAsesorias() },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
-                            border = BorderStroke(1.dp, VerdePrimario)) {
-                            Text("Cerrar sesión", fontWeight = FontWeight.SemiBold)
-                        }
+                            shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, VerdePrimario)
+                        ) { Text("Mis asesorías", color = VerdePrimario, fontWeight = FontWeight.SemiBold) }
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = { mostrarMenu = false; onCerrarSesion() },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(13.dp), border = BorderStroke(1.dp, VerdePrimario)
+                        ) { Text("Cerrar sesión", color = VerdePrimario, fontWeight = FontWeight.SemiBold) }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MetricaAsesor(titulo: String, valor: String, detalle: String, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Column(Modifier.padding(horizontal = 11.dp, vertical = 14.dp)) {
+            Text(titulo, fontSize = 10.sp, color = TextoSecundario, maxLines = 1)
+            Text(valor, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+            Text(detalle, fontSize = 9.sp, color = TextoSecundario, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun BarraActividadAsesor(etiqueta: String, valor: Int, total: Int) {
+    Column {
+        Row(Modifier.fillMaxWidth()) {
+            Text(etiqueta, fontSize = 11.sp, color = TextoPrimario, modifier = Modifier.weight(1f))
+            Text(valor.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+        }
+        Spacer(Modifier.height(5.dp))
+        LinearProgressIndicator(
+            progress = { (valor.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(4.dp)),
+            color = VerdePrimario,
+            trackColor = Color(0xFFE8ECE6)
+        )
+    }
+}
+
+@Composable
+private fun AccesoAsesor(titulo: String, descripcion: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFDDE8E0))
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Text(titulo, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
+            Text(descripcion, fontSize = 10.sp, color = TextoSecundario, lineHeight = 14.sp, modifier = Modifier.padding(top = 4.dp))
+            Text("Abrir  →", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = VerdePrimario, modifier = Modifier.padding(top = 10.dp))
         }
     }
 }
@@ -660,8 +779,12 @@ internal fun SolicitudCard(sol: SolicitudApiDto, onVerDetalle: (Int) -> Unit) {
             Row(modifier = Modifier.fillMaxWidth().padding(start = 42.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(sol.autor.nombre, fontSize = 11.sp,
-                    color = TextoSecundario, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AvatarIcono(sol.autor.avatarId, 25)
+                    Spacer(Modifier.width(7.dp))
+                    Text(sol.autor.nombre, fontSize = 11.sp,
+                        color = TextoSecundario, fontWeight = FontWeight.SemiBold)
+                }
                 Surface(shape = RoundedCornerShape(8.dp), color = VerdePrimario,
                     modifier = Modifier.clickable { onVerDetalle(sol.id) }) {
                     Text("Ver detalle", fontSize = 11.sp, color = Color.White,
@@ -688,9 +811,7 @@ private fun NuevaSolicitudDialog(
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onCerrar, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onCerrar)
                 Spacer(Modifier.weight(1f))
                 Text("Nueva Solicitud", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)

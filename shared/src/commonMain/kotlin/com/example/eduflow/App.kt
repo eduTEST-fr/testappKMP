@@ -1,6 +1,7 @@
 package com.example.eduflow
 
 import androidx.compose.runtime.*
+import com.example.eduflow.navigation.PlatformBackHandler
 import com.example.eduflow.notifications.NotificationScheduler
 import com.example.eduflow.storage.SesionStorage
 import com.example.eduflow.ui.*
@@ -16,17 +17,58 @@ enum class Pantalla {
 
 @Composable
 fun App() {
-    var pantalla          by remember { mutableStateOf(Pantalla.SPLASH) }
-    var origenPerfil      by remember { mutableStateOf(Pantalla.DASHBOARD) }
-    var origenAsesores    by remember { mutableStateOf(Pantalla.PEERS) }
+    var pantalla by remember { mutableStateOf(Pantalla.SPLASH) }
+    val historial = remember { mutableStateListOf<Pantalla>() }
     var solicitudIdActual by remember { mutableStateOf(0) }
-    var asesorIdActual    by remember { mutableStateOf(0) }
+    var asesorIdActual by remember { mutableStateOf(0) }
+
+    fun raizSegunRol(): Pantalla = when (SesionStorage.obtenerRol()) {
+        "ASESOR", "ADMIN" -> Pantalla.PEERS
+        else -> Pantalla.DASHBOARD
+    }
+
+    fun navegar(destino: Pantalla, limpiarHistorial: Boolean = false) {
+        if (destino == pantalla) return
+        if (limpiarHistorial) historial.clear() else historial.add(pantalla)
+        pantalla = destino
+    }
+
+    fun volver() {
+        pantalla = if (historial.isNotEmpty()) historial.removeAt(historial.lastIndex) else raizSegunRol()
+    }
+
+    fun navegarPrincipal(destino: Pantalla) {
+        if (destino == pantalla) return
+        val raiz = raizSegunRol()
+        historial.clear()
+        if (destino != raiz) historial.add(raiz)
+        pantalla = destino
+    }
+
+
+    fun iniciarSesion(): Pantalla {
+        if (!SesionStorage.haySesion()) return Pantalla.LOGIN
+        NotificationScheduler.iniciar()
+        historial.clear()
+        return raizSegunRol()
+    }
+
+    fun cerrarSesion() {
+        NotificationScheduler.detener()
+        SesionStorage.cerrarSesion()
+        historial.clear()
+        pantalla = Pantalla.LOGIN
+    }
+
+    // En Android intercepta el gesto/botón Atrás en todas las vistas internas.
+    // En la pantalla raíz se conserva el comportamiento normal del sistema.
+    PlatformBackHandler(
+        enabled = historial.isNotEmpty() && pantalla !in listOf(Pantalla.SPLASH, Pantalla.LOGIN)
+    ) { volver() }
 
     // Mientras la app está abierta, solicita un chequeo ligero cada minuto.
-    // Con la app cerrada, WorkManager conserva la revisión periódica de Android.
     LaunchedEffect(pantalla, SesionStorage.haySesion()) {
-        if (SesionStorage.haySesion() && pantalla != Pantalla.SPLASH &&
-            pantalla != Pantalla.LOGIN && pantalla != Pantalla.REGISTER) {
+        if (SesionStorage.haySesion() && pantalla !in listOf(Pantalla.SPLASH, Pantalla.LOGIN)) {
             while (true) {
                 delay(60_000)
                 NotificationScheduler.sincronizarAhora()
@@ -34,100 +76,75 @@ fun App() {
         }
     }
 
-    // Tras login, Asesor y Admin van directo a Peers; Alumno va a Dashboard
-    fun pantallaInicial(): Pantalla {
-        if (!SesionStorage.haySesion()) return Pantalla.LOGIN
-        // Hay sesión activa: prendemos la revisión periódica de notificaciones
-        // en segundo plano (en Web esto no hace nada).
-        NotificationScheduler.iniciar()
-        return when (SesionStorage.obtenerRol()) {
-            "ASESOR", "ADMIN" -> Pantalla.PEERS
-            else -> Pantalla.DASHBOARD
-        }
-    }
-
-    fun cerrarSesion() {
-        NotificationScheduler.detener()
-        SesionStorage.cerrarSesion()
-        pantalla = Pantalla.LOGIN
-    }
-
     when (pantalla) {
-        Pantalla.SPLASH -> SplashScreenView(
-            onFinish = { pantalla = pantallaInicial() }
-        )
+        Pantalla.SPLASH -> SplashScreenView(onFinish = { pantalla = iniciarSesion() })
         Pantalla.LOGIN -> LoginView(
-            onLoginExitoso = { pantalla = pantallaInicial() },
-            onIrARegistro  = { pantalla = Pantalla.REGISTER }
+            onLoginExitoso = { pantalla = iniciarSesion() },
+            onIrARegistro = { navegar(Pantalla.REGISTER) }
         )
         Pantalla.REGISTER -> RegisterView(
-            onRegistroExitoso = { pantalla = pantallaInicial() },
-            onVolver          = { pantalla = Pantalla.LOGIN }
+            onRegistroExitoso = { pantalla = iniciarSesion() },
+            onVolver = { volver() }
         )
 
-        // ── Solo ALUMNO llega aquí ──
         Pantalla.DASHBOARD -> DashboardView(
-            onVerStudyCast = { pantalla = Pantalla.STUDYCAST },
-            onVerAudios    = { pantalla = Pantalla.AUDIOS },
-            onVerPeers     = { pantalla = Pantalla.PEERS },
-            onVerPerfil    = { origenPerfil = Pantalla.DASHBOARD; pantalla = Pantalla.PERFIL },
-            onVerNotificaciones = { pantalla = Pantalla.NOTIFICACIONES },
-            onVerMisAsesorias   = { pantalla = Pantalla.MIS_ASESORIAS },
-            onIniciarSesionEstudio = { pantalla = Pantalla.SESION_ESTUDIO },
-            onCerrarSesion = { cerrarSesion() }
+            onVerStudyCast = { navegarPrincipal(Pantalla.STUDYCAST) },
+            onVerAudios = { navegarPrincipal(Pantalla.AUDIOS) },
+            onVerPeers = { navegarPrincipal(Pantalla.PEERS) },
+            onVerPerfil = { navegar(Pantalla.PERFIL) },
+            onVerNotificaciones = { navegar(Pantalla.NOTIFICACIONES) },
+            onVerMisAsesorias = { navegar(Pantalla.MIS_ASESORIAS) },
+            onIniciarSesionEstudio = { navegar(Pantalla.SESION_ESTUDIO) },
+            onCerrarSesion = ::cerrarSesion
         )
         Pantalla.STUDYCAST -> StudyCastView(
-            onVolver    = { pantalla = Pantalla.DASHBOARD },
-            onVerAudios = { pantalla = Pantalla.AUDIOS },
-            onVerPeers  = { pantalla = Pantalla.PEERS }
+            onVolver = ::volver,
+            onVerAudios = { navegarPrincipal(Pantalla.AUDIOS) },
+            onVerPeers = { navegarPrincipal(Pantalla.PEERS) }
         )
         Pantalla.AUDIOS -> AudiosView(
-            onVolver       = { pantalla = Pantalla.DASHBOARD },
-            onVerStudyCast = { pantalla = Pantalla.STUDYCAST },
-            onVerPeers     = { pantalla = Pantalla.PEERS }
+            onVolver = ::volver,
+            onVerStudyCast = { navegarPrincipal(Pantalla.STUDYCAST) },
+            onVerPeers = { navegarPrincipal(Pantalla.PEERS) }
         )
-        Pantalla.PERFIL -> PerfilView(
-            onVolver = { pantalla = origenPerfil }
-        )
-        Pantalla.NOTIFICACIONES -> NotificacionesView(
-            onVolver = { pantalla = Pantalla.DASHBOARD }
-        )
-        Pantalla.MIS_ASESORIAS -> MisAsesoriasView(
-            onVolver = { pantalla = if (SesionStorage.obtenerRol() == "ASESOR") Pantalla.PEERS else Pantalla.DASHBOARD }
-        )
-        Pantalla.SESION_ESTUDIO -> SesionEstudioView(
-            onVolver = { pantalla = Pantalla.DASHBOARD }
-        )
+        Pantalla.PERFIL -> PerfilView(onVolver = ::volver)
+        Pantalla.NOTIFICACIONES -> NotificacionesView(onVolver = ::volver)
+        Pantalla.MIS_ASESORIAS -> MisAsesoriasView(onVolver = ::volver)
+        Pantalla.SESION_ESTUDIO -> SesionEstudioView(onVolver = ::volver)
 
-        // ── Todos los roles llegan aquí ──
         Pantalla.PEERS -> PeersView(
-            onVolver       = { pantalla = Pantalla.DASHBOARD },
-            onVerStudyCast = { pantalla = Pantalla.STUDYCAST },
-            onVerAudios    = { pantalla = Pantalla.AUDIOS },
-            onVerPerfil    = { origenPerfil = Pantalla.PEERS; pantalla = Pantalla.PERFIL },
-            onCerrarSesion = { cerrarSesion() },
-            onVerDetalle   = { id -> solicitudIdActual = id; pantalla = Pantalla.SOLICITUD_DETALLE },
-            onVerTodosAsesores = { origenAsesores = Pantalla.PEERS; pantalla = Pantalla.ASESORES_LISTA },
-            onVerPerfilAsesor  = { id -> asesorIdActual = id; origenAsesores = Pantalla.PEERS; pantalla = Pantalla.PERFIL_ASESOR },
-            onVerMisAsesorias  = { pantalla = Pantalla.MIS_ASESORIAS }
+            onVolver = {
+                if (SesionStorage.obtenerRol() == "ALUMNO") volver()
+            },
+            onVerStudyCast = { if (SesionStorage.obtenerRol() == "ALUMNO") navegarPrincipal(Pantalla.STUDYCAST) },
+            onVerAudios = { if (SesionStorage.obtenerRol() == "ALUMNO") navegarPrincipal(Pantalla.AUDIOS) },
+            onVerPerfil = { navegar(Pantalla.PERFIL) },
+            onCerrarSesion = ::cerrarSesion,
+            onVerDetalle = { id -> solicitudIdActual = id; navegar(Pantalla.SOLICITUD_DETALLE) },
+            onVerTodosAsesores = { navegar(Pantalla.ASESORES_LISTA) },
+            onVerPerfilAsesor = { id -> asesorIdActual = id; navegar(Pantalla.PERFIL_ASESOR) },
+            onVerMisAsesorias = { navegar(Pantalla.MIS_ASESORIAS) }
         )
         Pantalla.SOLICITUD_DETALLE -> SolicitudDetalleView(
             solicitudId = solicitudIdActual,
-            onVolver    = { pantalla = Pantalla.PEERS }
+            onVolver = ::volver
         )
         Pantalla.ASESORES_LISTA -> AsesoresListaView(
-            onVolver = { pantalla = origenAsesores },
-            onVerPerfilAsesor = { id -> asesorIdActual = id; pantalla = Pantalla.PERFIL_ASESOR }
+            onVolver = ::volver,
+            onVerPerfilAsesor = { id -> asesorIdActual = id; navegar(Pantalla.PERFIL_ASESOR) }
         )
         Pantalla.PERFIL_ASESOR -> PerfilAsesorView(
             asesorId = asesorIdActual,
-            onVolver = { pantalla = origenAsesores },
-            onAgendar = { id -> asesorIdActual = id; pantalla = Pantalla.AGENDAR_ASESORIA }
+            onVolver = ::volver,
+            onAgendar = { id -> asesorIdActual = id; navegar(Pantalla.AGENDAR_ASESORIA) }
         )
         Pantalla.AGENDAR_ASESORIA -> AgendarAsesoriaView(
             asesorId = asesorIdActual,
-            onVolver = { pantalla = Pantalla.PERFIL_ASESOR },
-            onSolicitudEnviada = { pantalla = origenAsesores }
+            onVolver = ::volver,
+            onSolicitudEnviada = {
+                historial.clear()
+                pantalla = Pantalla.PEERS
+            }
         )
     }
 }

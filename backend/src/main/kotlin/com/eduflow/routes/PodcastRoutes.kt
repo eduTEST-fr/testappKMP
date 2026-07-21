@@ -14,13 +14,14 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 fun Routing.podcastRoutes() {
     // POST /podcasts/generar
-    // Genera y guarda un episodio únicamente para una materia del usuario autenticado.
     post("/podcasts/generar") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
             return@post
         }
         val req = call.receive<GenerarPodcastRequest>()
+        if (!validarAccesoMateriales(call, userId, req.materiaId)) return@post
+
         val temaLimpio = req.tema.trim().take(150)
         if (temaLimpio.isBlank()) {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Escribe un tema para el episodio"))
@@ -46,7 +47,6 @@ fun Routing.podcastRoutes() {
             return@post
         }
 
-        // Se usa el nombre real guardado en MySQL, no el texto enviado por el cliente.
         val guion = GroqService.generarGuionPodcast(datosMateria, temaLimpio)
         if (guion.isBlank() || guion == "Sin respuesta") {
             call.respond(
@@ -83,7 +83,7 @@ fun Routing.podcastRoutes() {
         )
     }
 
-    // GET /podcasts/{materiaId} - lista únicamente los podcasts de una materia propia.
+    // GET /podcasts/{materiaId} - no entrega contenido sin examen mensual ni el día del examen.
     get("/podcasts/{materiaId}") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -93,13 +93,9 @@ fun Routing.podcastRoutes() {
             call.respond(HttpStatusCode.BadRequest, mapOf("error" to "ID inválido"))
             return@get
         }
+        if (!validarAccesoMateriales(call, userId, materiaId)) return@get
 
         val lista = transaction {
-            val pertenece = Materias.selectAll()
-                .where { (Materias.id eq materiaId) and (Materias.usuarioId eq userId) }
-                .firstOrNull() != null
-            if (!pertenece) return@transaction null
-
             Podcasts.selectAll()
                 .where { Podcasts.materiaId eq materiaId }
                 .orderBy(Podcasts.createdAt, SortOrder.DESC)
@@ -114,15 +110,10 @@ fun Routing.podcastRoutes() {
                     )
                 }
         }
-
-        if (lista == null) {
-            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Materia no disponible"))
-        } else {
-            call.respond(lista)
-        }
+        call.respond(lista)
     }
 
-    // PUT /podcasts/{id}/completar - marca como escuchado solo un episodio propio.
+    // PUT /podcasts/{id}/completar
     put("/podcasts/{id}/completar") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
@@ -133,26 +124,24 @@ fun Routing.podcastRoutes() {
             return@put
         }
 
-        val actualizado = transaction {
-            val podcast = (Podcasts innerJoin Materias)
+        val materiaId = transaction {
+            (Podcasts innerJoin Materias)
                 .selectAll()
                 .where { (Podcasts.id eq id) and (Materias.usuarioId eq userId) }
-                .singleOrNull() ?: return@transaction false
-
-            Podcasts.update({ Podcasts.id eq podcast[Podcasts.id].value }) {
-                it[Podcasts.completado] = true
-            }
-            true
-        }
-
-        if (!actualizado) {
+                .singleOrNull()?.get(Podcasts.materiaId)
+        } ?: run {
             call.respond(HttpStatusCode.NotFound, mapOf("error" to "Episodio no disponible"))
-        } else {
-            call.respond(HttpStatusCode.OK, mapOf("ok" to true))
+            return@put
         }
+        if (!validarAccesoMateriales(call, userId, materiaId)) return@put
+
+        transaction {
+            Podcasts.update({ Podcasts.id eq id }) { it[Podcasts.completado] = true }
+        }
+        call.respond(HttpStatusCode.OK, mapOf("ok" to true))
     }
 
-    // GET /podcasts/audio/{id} - entrega el MP3 únicamente al propietario de la materia.
+    // GET /podcasts/audio/{id} - el archivo también respeta el bloqueo de estudio.
     get("/podcasts/audio/{id}") {
         val userId = obtenerUserId(call) ?: run {
             call.respond(HttpStatusCode.Unauthorized, "Token inválido")
@@ -163,16 +152,18 @@ fun Routing.podcastRoutes() {
             return@get
         }
 
-        val bytes = transaction {
+        val datos = transaction {
             (Podcasts innerJoin Materias)
                 .selectAll()
                 .where { (Podcasts.id eq id) and (Materias.usuarioId eq userId) }
-                .singleOrNull()
-                ?.get(Podcasts.audioBytes)
-                ?.bytes
+                .singleOrNull()?.let { row -> row[Podcasts.materiaId] to row[Podcasts.audioBytes]?.bytes }
+        } ?: run {
+            call.respond(HttpStatusCode.NotFound, "Audio no encontrado")
+            return@get
         }
 
-        if (bytes == null) {
+        if (!validarAccesoMateriales(call, userId, datos.first)) return@get
+        val bytes = datos.second ?: run {
             call.respond(HttpStatusCode.NotFound, "Audio no encontrado")
             return@get
         }

@@ -2,6 +2,7 @@ package com.eduflow.routes
 
 import com.eduflow.model.*
 import com.eduflow.service.NotificacionService
+import com.eduflow.util.AppClock
 import io.ktor.http.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -38,7 +39,7 @@ fun Routing.notificacionRoutes() {
             call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token inválido"))
             return@post
         }
-        val hoy = LocalDate.now()
+        val hoy = AppClock.hoy()
         val creadas = transaction {
             var total = 0
 
@@ -49,34 +50,58 @@ fun Routing.notificacionRoutes() {
                     val dificultad = materia[Materias.dificultad]
                     val anticipacion = diasAnticipacionPorDificultad(dificultad)
 
-                    Examenes.selectAll()
+                    val examenesMateria = Examenes.selectAll()
                         .where { Examenes.materiaId eq materiaId }
-                        .forEach { examen ->
-                            val fecha = examen[Examenes.fecha]
-                            val dias = ChronoUnit.DAYS.between(hoy, fecha)
-                            if (dias in 0L..anticipacion.toLong()) {
-                                val examenId = examen[Examenes.id].value
-                                val meta = minutosIdeales(dificultad, dias)
-                                val titulo = if (dias == 0L) {
-                                    "Examen hoy: ${materia[Materias.nombre]}"
-                                } else {
-                                    "Es momento de estudiar ${materia[Materias.nombre]}"
-                                }
-                                val detalleFecha = when (dias) {
-                                    0L -> "Tu examen es hoy."
-                                    1L -> "Tu examen es mañana."
-                                    else -> "Tu examen es en $dias días."
-                                }
-                                if (NotificacionService.crear(
-                                        usuarioId = userId,
-                                        titulo = titulo,
-                                        contenido = "$detalleFecha Por su dificultad $dificultad/10, intenta estudiar $meta minutos hoy.",
-                                        tipo = "RECORDATORIO_EXAMEN",
-                                        referenciaId = materiaId,
-                                        clave = "EXAMEN_${examenId}_${hoy}"
-                                    )) total++
+                        .toList()
+
+                    val tieneExamenMes = examenesMateria.any { examen ->
+                        val fecha = examen[Examenes.fecha]
+                        fecha.year == hoy.year && fecha.month == hoy.month
+                    }
+
+                    if (!tieneExamenMes) {
+                        if (NotificacionService.crear(
+                                usuarioId = userId,
+                                titulo = "Configura el examen de ${materia[Materias.nombre]}",
+                                contenido = "Registra una fecha para este mes. La usaremos para calcular recordatorios y habilitar tus tarjetas y audios.",
+                                tipo = "CONFIGURAR_EXAMEN",
+                                referenciaId = materiaId,
+                                clave = "CONFIG_EXAMEN_${materiaId}_${hoy.year}_${hoy.monthValue}"
+                            )) total++
+                    }
+
+                    examenesMateria.forEach { examen ->
+                        val fecha = examen[Examenes.fecha]
+                        val dias = ChronoUnit.DAYS.between(hoy, fecha)
+                        if (dias in 0L..anticipacion.toLong()) {
+                            val examenId = examen[Examenes.id].value
+                            val meta = minutosIdeales(dificultad, dias)
+                            val titulo = if (dias == 0L) {
+                                "Examen hoy: ${materia[Materias.nombre]}"
+                            } else {
+                                "Es momento de estudiar ${materia[Materias.nombre]}"
                             }
+                            val contenido = if (dias == 0L) {
+                                "Tu examen es hoy. Los materiales quedan bloqueados para evitar estudio de último minuto; confía en lo que preparaste y revisa tus indicaciones."
+                            } else {
+                                val detalleFecha = if (dias == 1L) "Tu examen es mañana." else "Tu examen es en $dias días."
+                                val recurso = when {
+                                    dificultad >= 8 -> "Haz una sesión y repasa tanto tarjetas como audios."
+                                    dificultad >= 5 -> "Repasa tus tarjetas o escucha uno de tus audios."
+                                    else -> "Realiza un repaso breve de tus materiales."
+                                }
+                                "$detalleFecha Por su dificultad $dificultad/10, intenta estudiar $meta minutos hoy. $recurso"
+                            }
+                            if (NotificacionService.crear(
+                                    usuarioId = userId,
+                                    titulo = titulo,
+                                    contenido = contenido,
+                                    tipo = "RECORDATORIO_EXAMEN",
+                                    referenciaId = materiaId,
+                                    clave = "EXAMEN_${examenId}_${hoy}"
+                                )) total++
                         }
+                    }
                 }
 
             Asesorias.selectAll()

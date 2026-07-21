@@ -24,7 +24,8 @@ import kotlinx.serialization.json.Json
 @Serializable
 private data class AutorDetalle(
     val id: Int, val nombre: String, val carrera: String = "",
-    val cuatrimestre: Int = 1, val rol: String = "ALUMNO"
+    val cuatrimestre: Int = 1, val rol: String = "ALUMNO",
+    val avatarId: String = "student_buho"
 )
 
 @Serializable
@@ -146,9 +147,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
             // Top bar
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onVolver)
                 Spacer(Modifier.weight(1f))
                 Text("Detalle de Solicitud", fontSize = 15.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)
@@ -215,7 +214,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                             Spacer(Modifier.height(12.dp))
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                AvatarIcono(avatarId = "avatar_1", sizeDp = 28)
+                                AvatarIcono(avatarId = sol.autor.avatarId, sizeDp = 28)
                                 Spacer(Modifier.width(8.dp))
                                 Text(sol.autor.nombre, fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold, color = TextoPrimario)
@@ -298,7 +297,7 @@ fun SolicitudDetalleView(solicitudId: Int, onVolver: () -> Unit) {
                                 elevation = CardDefaults.cardElevation(2.dp)) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        AvatarIcono(avatarId = "avatar_1", sizeDp = 28)
+                                        AvatarIcono(avatarId = resp.autor.avatarId, sizeDp = 28)
                                         Spacer(Modifier.width(8.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(resp.autor.nombre, fontSize = 12.sp,

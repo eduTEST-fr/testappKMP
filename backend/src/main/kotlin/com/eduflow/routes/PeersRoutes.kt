@@ -21,6 +21,32 @@ private fun crearNotificacion(
     NotificacionService.crear(usuarioId, titulo, contenido, tipo, referenciaId)
 }
 
+private fun normalizarGrado(grado: String?): String = when (grado?.uppercase()) {
+    "MAESTRIA", "MAESTRÍA" -> "MAESTRIA"
+    "DOCTORADO" -> "DOCTORADO"
+    else -> "LICENCIATURA"
+}
+
+private fun avatarPorGrado(grado: String): String = when (normalizarGrado(grado)) {
+    "DOCTORADO" -> "advisor_doc"
+    "MAESTRIA" -> "advisor_mae"
+    else -> "advisor_lic"
+}
+
+private val avataresAlumnoPermitidos = setOf(
+    "student_buho", "student_zorro", "student_gato",
+    "student_conejo", "student_oso", "student_tortuga",
+    "avatar_1", "avatar_2", "avatar_3", "avatar_4", "avatar_5", "avatar_6"
+)
+
+private fun avatarVisibleUsuario(usuarioId: Int, rol: String, avatarGuardado: String): String {
+    if (rol != "ASESOR") return avatarGuardado
+    val grado = AsesoresPerfil.selectAll()
+        .where { AsesoresPerfil.usuarioId eq usuarioId }
+        .firstOrNull()?.get(AsesoresPerfil.grado) ?: "LICENCIATURA"
+    return avatarPorGrado(grado)
+}
+
 fun Routing.peersRoutes() {
 
     // GET /peers/solicitudes — solicitudes abiertas, más recientes primero
@@ -50,7 +76,12 @@ fun Routing.peersRoutes() {
                             nombre = it[Usuarios.nombre],
                             carrera = it[Usuarios.carrera] ?: "",
                             cuatrimestre = it[Usuarios.cuatrimestre],
-                            rol = it[Usuarios.rol]
+                            rol = it[Usuarios.rol],
+                            avatarId = avatarVisibleUsuario(
+                                it[Usuarios.id].value,
+                                it[Usuarios.rol],
+                                it[Usuarios.avatarId]
+                            )
                         )
                     )
                 }
@@ -87,7 +118,7 @@ fun Routing.peersRoutes() {
                 .forEach { destinatario ->
                     crearNotificacion(
                         usuarioId = destinatario[Usuarios.id].value,
-                        titulo = "Nueva pregunta en Peers",
+                        titulo = "Nueva pregunta en la Comunidad",
                         contenido = "$nombreAutor publicó: ${req.titulo}",
                         tipo = "PEERS_SOLICITUD",
                         referenciaId = nuevaSolicitudId
@@ -190,7 +221,12 @@ fun Routing.peersRoutes() {
                             id = it[Usuarios.id].value,
                             nombre = it[Usuarios.nombre],
                             cuatrimestre = it[Usuarios.cuatrimestre],
-                            rol = it[Usuarios.rol]
+                            rol = it[Usuarios.rol],
+                            avatarId = avatarVisibleUsuario(
+                                it[Usuarios.id].value,
+                                it[Usuarios.rol],
+                                it[Usuarios.avatarId]
+                            )
                         )
                     )
                 }
@@ -207,7 +243,12 @@ fun Routing.peersRoutes() {
                     id = sol[Usuarios.id].value,
                     nombre = sol[Usuarios.nombre],
                     cuatrimestre = sol[Usuarios.cuatrimestre],
-                    rol = sol[Usuarios.rol]
+                    rol = sol[Usuarios.rol],
+                    avatarId = avatarVisibleUsuario(
+                        sol[Usuarios.id].value,
+                        sol[Usuarios.rol],
+                        sol[Usuarios.avatarId]
+                    )
                 ),
                 respuestas = respuestas
             )
@@ -371,7 +412,7 @@ fun Routing.peersRoutes() {
             val estrellitas = "★".repeat(req.estrellas)
             crearNotificacion(
                 usuarioId = req.asesorId,
-                titulo = "Nueva calificación en Peers",
+                titulo = "Nueva calificación en la Comunidad",
                 contenido = "$nombreAlumno calificó tu respuesta con $estrellitas",
                 tipo = "PEERS_CALIFICACION",
                 referenciaId = req.solicitudId
@@ -399,7 +440,11 @@ fun Routing.peersRoutes() {
                 sobreMi = u[Usuarios.sobreMi] ?: "",
                 materiasDestaca = u[Usuarios.materiasDestaca] ?: "",
                 rol = u[Usuarios.rol],
-                avatarId = u[Usuarios.avatarId],
+                avatarId = avatarVisibleUsuario(
+                    u[Usuarios.id].value,
+                    u[Usuarios.rol],
+                    u[Usuarios.avatarId]
+                ),
                 grado = asesor?.get(AsesoresPerfil.grado) ?: "",
                 especialidad = asesor?.get(AsesoresPerfil.especialidad) ?: "",
                 permiteAsesoria = asesor?.get(AsesoresPerfil.permiteAsesoria) ?: false
@@ -428,7 +473,11 @@ fun Routing.peersRoutes() {
                 sobreMi = u[Usuarios.sobreMi] ?: "",
                 materiasDestaca = u[Usuarios.materiasDestaca] ?: "",
                 rol = u[Usuarios.rol],
-                avatarId = u[Usuarios.avatarId],
+                avatarId = avatarVisibleUsuario(
+                    u[Usuarios.id].value,
+                    u[Usuarios.rol],
+                    u[Usuarios.avatarId]
+                ),
                 grado = asesor?.get(AsesoresPerfil.grado) ?: "",
                 especialidad = asesor?.get(AsesoresPerfil.especialidad) ?: "",
                 permiteAsesoria = asesor?.get(AsesoresPerfil.permiteAsesoria) ?: false
@@ -447,28 +496,41 @@ fun Routing.peersRoutes() {
         val rolUsuario = obtenerRol(call)
         val req = call.receive<ActualizarPerfilRequest>()
         transaction {
+            val perfilAsesorActual = if (rolUsuario == "ASESOR") {
+                AsesoresPerfil.selectAll()
+                    .where { AsesoresPerfil.usuarioId eq userId }
+                    .firstOrNull()
+            } else null
+            val gradoSolicitado = req.grado?.let { normalizarGrado(it) }
+            val gradoFinal = if (rolUsuario == "ASESOR") {
+                gradoSolicitado ?: perfilAsesorActual?.get(AsesoresPerfil.grado) ?: "LICENCIATURA"
+            } else null
+            val avatarFinal = if (rolUsuario == "ASESOR") {
+                avatarPorGrado(gradoFinal ?: "LICENCIATURA")
+            } else {
+                req.avatarId?.takeIf { it in avataresAlumnoPermitidos }
+            }
+
             Usuarios.update({ Usuarios.id eq userId }) {
-                req.carrera?.let { v -> it[carrera] = v }
-                req.cuatrimestre?.let { v -> it[cuatrimestre] = v }
-                req.sobreMi?.let { v -> it[sobreMi] = v }
-                req.materiasDestaca?.let { v -> it[materiasDestaca] = v }
-                req.avatarId?.let { v -> it[avatarId] = v }
+                req.carrera?.let { v -> it[carrera] = v.take(120) }
+                req.cuatrimestre?.let { v -> it[cuatrimestre] = v.coerceIn(1, 10) }
+                req.sobreMi?.let { v -> it[sobreMi] = v.take(1200) }
+                req.materiasDestaca?.let { v -> it[materiasDestaca] = v.take(1000) }
+                avatarFinal?.let { v -> it[avatarId] = v }
             }
             if (rolUsuario == "ASESOR" &&
                 (req.grado != null || req.especialidad != null || req.permiteAsesoria != null)) {
-                val existe = AsesoresPerfil.selectAll()
-                    .where { AsesoresPerfil.usuarioId eq userId }.count() > 0
-                if (existe) {
+                if (perfilAsesorActual != null) {
                     AsesoresPerfil.update({ AsesoresPerfil.usuarioId eq userId }) {
-                        req.grado?.let { v -> it[grado] = v }
-                        req.especialidad?.let { v -> it[especialidad] = v }
+                        gradoSolicitado?.let { v -> it[grado] = v }
+                        req.especialidad?.let { v -> it[especialidad] = v.take(200) }
                         req.permiteAsesoria?.let { v -> it[permiteAsesoria] = v }
                     }
                 } else {
                     AsesoresPerfil.insert {
                         it[usuarioId] = userId
-                        it[grado] = req.grado ?: "LICENCIATURA"
-                        it[especialidad] = req.especialidad
+                        it[grado] = gradoFinal ?: "LICENCIATURA"
+                        it[especialidad] = req.especialidad?.take(200)
                         it[permiteAsesoria] = req.permiteAsesoria ?: false
                     }
                 }
@@ -506,7 +568,7 @@ fun Routing.peersRoutes() {
                         cuatrimestre = u[Usuarios.cuatrimestre],
                         materiasDestaca = u[Usuarios.materiasDestaca] ?: "",
                         rol = u[Usuarios.rol],
-                        avatarId = u[Usuarios.avatarId],
+                        avatarId = avatarVisibleUsuario(uid, u[Usuarios.rol], u[Usuarios.avatarId]),
                         promedio = prom,
                         totalCalif = total,
                         permiteAsesoria = ap?.get(AsesoresPerfil.permiteAsesoria) ?: false

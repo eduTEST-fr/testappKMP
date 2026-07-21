@@ -15,7 +15,7 @@ object Usuarios : IntIdTable("usuarios") {
     val sobreMi = text("sobre_mi").nullable()
     val materiasDestaca = text("materias_destaca").nullable() // CSV: "Algebra,Calculo"
     val rol = varchar("rol", 20).default("ALUMNO") // ALUMNO | ASESOR | ADMIN
-    val avatarId = varchar("avatar_id", 30).default("avatar_1") // icono de perfil predeterminado
+    val avatarId = varchar("avatar_id", 30).default("student_buho") // avatar académico predeterminado
     val createdAt = timestamp("created_at").clientDefault { java.time.Instant.now() }
 }
 

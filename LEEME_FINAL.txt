@@ -1,0 +1,26 @@
+EDUFLOW — ENTREGA FINAL DE EXPERIENCIA
+
+API configurada:
+https://testappkmp-production-e13d.up.railway.app
+
+Para aplicar esta versión:
+1. Sustituye/actualiza el repositorio con el contenido del proyecto.
+2. Vuelve a desplegar el backend en Railway.
+3. No crees tablas manualmente; esta entrega reutiliza las tablas existentes.
+4. Opcional en Railway: APP_TIME_ZONE=America/Mexico_City.
+5. Sincroniza Gradle en Android Studio y reinstala la aplicación.
+
+Documentación:
+- docs/MEJORAS_FINALES_EXPERIENCIA.md
+- docs/GUIA_PRUEBAS_FINALES.md
+- VALIDACION_ENTREGA.txt
+
+Incluye:
+- examen mensual obligatorio;
+- bloqueo completo de tarjetas y audios;
+- recordatorios según dificultad;
+- avatares Canvas y logo vectorial;
+- panel del asesor ampliado;
+- navegación Android corregida;
+- barra inferior en español;
+- diálogos de creación mejorados.

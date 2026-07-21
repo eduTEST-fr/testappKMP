@@ -12,7 +12,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.navigation.PlatformBackHandler
 import com.example.eduflow.storage.SesionStorage
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -49,6 +51,10 @@ fun AudiosView(onVolver: () -> Unit, onVerStudyCast: () -> Unit, onVerPeers: () 
     var materias by remember { mutableStateOf<List<MateriaUI>>(emptyList()) }
     var cargandoMaterias by remember { mutableStateOf(true) }
     var materiaActiva by remember { mutableStateOf<MateriaUI?>(null) }
+    var fechasPorMateria by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
+    var examenesCargados by remember { mutableStateOf<Set<Int>>(emptySet()) }
+
+    PlatformBackHandler(enabled = materiaActiva != null) { materiaActiva = null }
 
     LaunchedEffect(Unit) {
         try {
@@ -56,7 +62,22 @@ fun AudiosView(onVolver: () -> Unit, onVerStudyCast: () -> Unit, onVerPeers: () 
                 header("Authorization", "Bearer $token")
             }.bodyAsText()
             val lista = jsonParserAudios.decodeFromString<List<MateriaApiDtoAudios>>(resp)
-            materias = lista.map { MateriaUI(it.id, it.nombre, it.dificultad) }
+                .map { MateriaUI(it.id, it.nombre, it.dificultad) }
+            materias = lista
+            val mapa = mutableMapOf<Int, List<String>>()
+            val cargados = mutableSetOf<Int>()
+            lista.forEach { materia ->
+                try {
+                    val respuesta = client.get("${ApiConfig.BASE_URL}/materias/${materia.id}/examenes") {
+                        header("Authorization", "Bearer $token")
+                    }.bodyAsText()
+                    val regex = Regex(""""fecha":"([^"]+)"""")
+                    mapa[materia.id] = regex.findAll(respuesta).map { it.groupValues[1] }.toList()
+                    cargados += materia.id
+                } catch (_: Exception) { /* se mantiene como estado no validado */ }
+            }
+            fechasPorMateria = mapa
+            examenesCargados = cargados
         } catch (e: Exception) {}
         cargandoMaterias = false
     }
@@ -69,10 +90,7 @@ fun AudiosView(onVolver: () -> Unit, onVerStudyCast: () -> Unit, onVerPeers: () 
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = { if (materiaActiva != null) materiaActiva = null else onVolver() },
-                    contentPadding = PaddingValues(0.dp)
-                ) { Text("←", fontSize = 20.sp, color = VerdePrimario) }
+                BotonVolver(onClick = { if (materiaActiva != null) materiaActiva = null else onVolver() })
                 Spacer(Modifier.weight(1f))
                 Text("EduFlow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
@@ -96,18 +114,41 @@ fun AudiosView(onVolver: () -> Unit, onVerStudyCast: () -> Unit, onVerPeers: () 
                         }
                         materias.isEmpty() -> EstadoVacioBiblioteca(onVolver)
                         else -> materias.forEach { m ->
-                            MateriaFolderCard(nombre = m.nombre, dificultad = m.dificultad, icono = "♪") {
-                                materiaActiva = m
+                            val fechas = fechasPorMateria[m.id] ?: emptyList()
+                            val bloqueo = if (m.id !in examenesCargados) {
+                                BloqueoMateriaUI.NINGUNO
+                            } else when {
+                                tieneExamenHoy(fechas) -> BloqueoMateriaUI.EXAMEN_HOY
+                                !tieneExamenMesActual(fechas) -> BloqueoMateriaUI.SIN_EXAMEN_MENSUAL
+                                else -> BloqueoMateriaUI.NINGUNO
                             }
+                            MateriaFolderCard(
+                                nombre = m.nombre,
+                                dificultad = m.dificultad,
+                                icono = "♪",
+                                bloqueo = bloqueo
+                            ) { materiaActiva = m }
                             Spacer(Modifier.height(10.dp))
                         }
                     }
                 } else {
+                    val fechas = fechasPorMateria[materia.id] ?: emptyList()
+                    val bloqueo = if (materia.id !in examenesCargados) {
+                        BloqueoMateriaUI.NINGUNO
+                    } else when {
+                        tieneExamenHoy(fechas) -> BloqueoMateriaUI.EXAMEN_HOY
+                        !tieneExamenMesActual(fechas) -> BloqueoMateriaUI.SIN_EXAMEN_MENSUAL
+                        else -> BloqueoMateriaUI.NINGUNO
+                    }
                     Text(materia.nombre, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
                     Text("Dificultad ${materia.dificultad}/10 · Audios con IA",
                         fontSize = 12.sp, color = TextoSecundario,
                         modifier = Modifier.padding(top = 2.dp, bottom = 18.dp))
-                    AudiosBibliotecaMateria(materia = materia, token = token)
+                    if (bloqueo == BloqueoMateriaUI.NINGUNO) {
+                        AudiosBibliotecaMateria(materia = materia, token = token)
+                    } else {
+                        MaterialBloqueadoAudio(bloqueo, materia.nombre)
+                    }
                 }
             }
         }
@@ -120,11 +161,38 @@ fun AudiosView(onVolver: () -> Unit, onVerStudyCast: () -> Unit, onVerPeers: () 
                 modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                BottomNavItem(label = "Dashboard", selected = false, symbol = "⊞", onClick = onVolver)
-                BottomNavItem(label = "StudyCast", selected = false, symbol = "▶", onClick = onVerStudyCast)
-                BottomNavItem(label = "Audio", selected = true, symbol = "♪")
-                BottomNavItem(label = "Peers", selected = false, symbol = "⊙", onClick = onVerPeers)
+                BottomNavItem("Inicio", false, NavIcono.INICIO, onVolver)
+                BottomNavItem("Tarjetas", false, NavIcono.TARJETAS, onVerStudyCast)
+                BottomNavItem("Audios", true, NavIcono.AUDIOS)
+                BottomNavItem("Comunidad", false, NavIcono.COMUNIDAD, onVerPeers)
             }
+        }
+    }
+}
+
+@Composable
+private fun MaterialBloqueadoAudio(bloqueo: BloqueoMateriaUI, materia: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) Color(0xFFFFF3E0) else Color(0xFFDDE8E0)
+        )
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) "Audios bloqueados por examen" else "Configura el examen del mes",
+                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) Color(0xFF8B6914) else VerdePrimario
+            )
+            Text(
+                if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY)
+                    "Hoy es el examen de $materia. No se permite reproducir ni generar audios durante este día."
+                else
+                    "Registra en Inicio una evaluación del mes actual para habilitar esta biblioteca y recibir recordatorios de repaso.",
+                fontSize = 13.sp, color = TextoSecundario, lineHeight = 19.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
         }
     }
 }
@@ -140,23 +208,31 @@ private fun EstadoVacioBiblioteca(onVolver: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Sin materias registradas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
-            Text("Regresa al Dashboard y agrega una materia primero.",
+            Text("Regresa a Inicio y agrega una materia primero.",
                 fontSize = 13.sp, color = TextoSecundario, textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 6.dp, bottom = 16.dp), lineHeight = 19.sp)
             Button(onClick = onVolver, shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)) {
-                Text("Ir al Dashboard", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Ir a Inicio", color = Color.White, fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
 @Composable
-fun MateriaFolderCard(nombre: String, dificultad: Int, icono: String, onClick: () -> Unit) {
+fun MateriaFolderCard(
+    nombre: String,
+    dificultad: Int,
+    icono: String,
+    bloqueo: BloqueoMateriaUI = BloqueoMateriaUI.NINGUNO,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = if (bloqueo == BloqueoMateriaUI.NINGUNO) Color.White else Color(0xFFF1F1ED)
+        ),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column {
@@ -170,9 +246,17 @@ fun MateriaFolderCard(nombre: String, dificultad: Int, icono: String, onClick: (
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(nombre, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextoPrimario)
-                    Text("Dificultad $dificultad/10", fontSize = 12.sp, color = TextoSecundario)
+                    Text(
+                        when (bloqueo) {
+                            BloqueoMateriaUI.EXAMEN_HOY -> "Examen hoy · materiales bloqueados"
+                            BloqueoMateriaUI.SIN_EXAMEN_MENSUAL -> "Falta examen del mes"
+                            BloqueoMateriaUI.NINGUNO -> "Dificultad $dificultad/10"
+                        },
+                        fontSize = 12.sp,
+                        color = if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) Color(0xFF8B6914) else TextoSecundario
+                    )
                 }
-                Text("›", fontSize = 20.sp, color = TextoSecundario)
+                Text(if (bloqueo == BloqueoMateriaUI.NINGUNO) "›" else "•", fontSize = 20.sp, color = TextoSecundario)
             }
         }
     }
@@ -189,6 +273,10 @@ private fun AudiosBibliotecaMateria(materia: MateriaUI, token: String) {
     var mostrarNuevo by remember { mutableStateOf(false) }
     var generando by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf("") }
+
+    PlatformBackHandler(enabled = temaActivo != null || mostrarNuevo) {
+        if (mostrarNuevo) mostrarNuevo = false else temaActivo = null
+    }
 
     suspend fun recargar() {
         cargando = true
@@ -337,8 +425,9 @@ private fun SubcarpetaAudiosDetalle(
     onVolver: () -> Unit, onCompletado: (Int) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-            Text("←  ", fontSize = 15.sp, color = VerdePrimario)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BotonVolver(onClick = onVolver)
+            Spacer(Modifier.width(8.dp))
             Text("Subcarpetas", fontSize = 13.sp, color = VerdePrimario, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
@@ -452,59 +541,86 @@ private fun EpisodioCard(episodio: Episodio, token: String, onCompletado: () -> 
 
 @Composable
 private fun NuevoAudioDialog(
-    generando: Boolean, errorMsg: String,
-    onGuardar: (String) -> Unit, onCerrar: () -> Unit
+    generando: Boolean,
+    errorMsg: String,
+    onGuardar: (String) -> Unit,
+    onCerrar: () -> Unit
 ) {
     var tema by remember { mutableStateOf("") }
     var validacion by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
-            .clickable(enabled = !generando) { onCerrar() },
-        contentAlignment = Alignment.Center
-    ) {
+    Dialog(onDismissRequest = { if (!generando) onCerrar() }) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(28.dp).clickable(enabled = false) {},
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text("Nuevo audio con IA", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
-                Text("Un episodio corto con datos curiosos del tema",
-                    fontSize = 12.sp, color = TextoSecundario,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 18.dp))
-
-                CampoTexto("Tema del episodio", tema, "Ej: Ciclos for, recursividad...") {
-                    tema = it; validacion = ""
+            Column(Modifier.padding(23.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFFDDE8E0), modifier = Modifier.size(48.dp)) {
+                        Box(contentAlignment = Alignment.Center) { Text("♪", fontSize = 20.sp, color = VerdePrimario, fontWeight = FontWeight.Bold) }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Crear StudyCast", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                        Text("Audio breve para repasar un tema puntual", fontSize = 12.sp, color = TextoSecundario)
+                    }
                 }
 
-                val mensaje = if (validacion.isNotEmpty()) validacion else errorMsg
-                if (mensaje.isNotEmpty())
-                    Text(mensaje, color = Color(0xFFB00020), fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp))
-
                 Spacer(Modifier.height(18.dp))
+                Text("Tema del episodio", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextoPrimario)
+                Spacer(Modifier.height(7.dp))
+                OutlinedTextField(
+                    value = tema,
+                    onValueChange = { tema = it.take(120); validacion = "" },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(14.dp),
+                    placeholder = { Text("Ej. Recursividad y casos base", fontSize = 13.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = VerdePrimario,
+                        unfocusedBorderColor = Color(0xFFE1E1DC),
+                        focusedContainerColor = Color(0xFFFCFCFA),
+                        unfocusedContainerColor = Color(0xFFFCFCFA)
+                    )
+                )
 
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF4F6F1),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                ) {
+                    Text(
+                        "Se generará un guion y su audio. Después podrás reproducirlo, pausarlo y saltar 10 segundos.",
+                        fontSize = 11.sp, color = TextoSecundario, lineHeight = 17.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                val mensaje = validacion.ifBlank { errorMsg }
+                if (mensaje.isNotBlank()) Text(mensaje, color = Color(0xFFB00020), fontSize = 12.sp, modifier = Modifier.padding(top = 9.dp))
+                Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
-                        onClick = onCerrar, enabled = !generando,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
-                        border = BorderStroke(1.dp, VerdePrimario)
-                    ) { Text("Cancelar", fontWeight = FontWeight.SemiBold) }
-
-                    Button(
-                        onClick = { if (tema.isBlank()) validacion = "Escribe el tema" else onGuardar(tema.trim()) },
+                        onClick = onCerrar,
                         enabled = !generando,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, VerdePrimario)
+                    ) { Text("Cancelar", color = VerdePrimario, fontWeight = FontWeight.SemiBold) }
+                    Button(
+                        onClick = {
+                            if (tema.isBlank()) validacion = "Describe el tema del episodio."
+                            else onGuardar(tema.trim())
+                        },
+                        enabled = !generando,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)
                     ) {
-                        if (generando)
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        else
-                            Text("Generar", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        if (generando) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        else Text("Generar", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

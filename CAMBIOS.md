@@ -300,3 +300,35 @@ TTS). Resumen de lo que cambió:
    `https://testappkmp-production-e13d.up.railway.app`.
 8. **Permisos simplificados:** se retiró el permiso de almacenamiento que no se
    utilizaba; el MP3 temporal se guarda en la caché interna de Android.
+
+---
+
+## EP13 — Control académico mensual y experiencia final
+
+1. **Examen mensual obligatorio:** al crear una materia se solicita dificultad,
+   tipo de evaluación y fecha dentro del mes actual. Las materias antiguas sin
+   evaluación mensual muestran un aviso obligatorio al entrar a Inicio.
+2. **Bloqueo completo de materiales:** Tarjetas y Audios se bloquean tanto si
+   falta el examen del mes como durante la fecha exacta del examen. La regla se
+   aplica también en el backend a generación, listado, reproducción y progreso.
+3. **Recordatorios adaptativos:** se generan avisos deduplicados según dificultad
+   y cercanía del examen, con tiempo recomendado y recurso sugerido.
+4. **Controles definidos:** dificultad, tipo/fecha de examen y grado académico
+   usan selectores en lugar de texto libre.
+5. **Identidad visual:** el acceso usa un logo vectorial propio; los alumnos
+   disponen de seis avatares académicos de animales y los asesores reciben uno
+   acorde a Licenciatura, Maestría o Doctorado.
+6. **Panel de asesor:** se añadieron métricas, actividad, agenda, perfil y
+   solicitudes recientes, sin acceso a materiales privados del alumno.
+7. **Navegación Android:** el gesto Atrás recorre la navegación interna y cierra
+   diálogos o subcarpetas antes de salir. La barra inferior quedó completamente
+   en español.
+8. **Diálogos de creación:** tarjetas y audios utilizan ventanas blancas,
+   ordenadas y coherentes con el diseño de EduFlow.
+9. **Fecha de Railway:** el backend usa `America/Mexico_City` como zona
+   predeterminada, configurable mediante `APP_TIME_ZONE`, para evitar desfases
+   en el bloqueo del examen.
+10. **Tolerancia a fallas de red:** una consulta de exámenes fallida ya no se
+    interpreta automáticamente como ausencia de evaluación mensual.
+11. **Corrección de perfil asesor:** editar únicamente especialidad o agenda ya
+    no reinicia el grado académico ni su avatar asociado.

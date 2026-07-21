@@ -11,6 +11,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.navigation.PlatformBackHandler
 import com.example.eduflow.storage.SesionStorage
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -37,6 +38,9 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
     var cargandoMaterias by remember { mutableStateOf(true) }
     var materiaActiva by remember { mutableStateOf<MateriaUI?>(null) }
     var fechasPorMateria by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
+    var examenesCargados by remember { mutableStateOf<Set<Int>>(emptySet()) }
+
+    PlatformBackHandler(enabled = materiaActiva != null) { materiaActiva = null }
 
     LaunchedEffect(Unit) {
         try {
@@ -48,6 +52,7 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
             materias = lista
 
             val mapa = mutableMapOf<Int, List<String>>()
+            val cargados = mutableSetOf<Int>()
             lista.forEach { m ->
                 try {
                     val respEx = client.get("${ApiConfig.BASE_URL}/materias/${m.id}/examenes") {
@@ -55,9 +60,11 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
                     }.bodyAsText()
                     val rFecha = Regex(""""fecha":"([^"]+)"""")
                     mapa[m.id] = rFecha.findAll(respEx).map { it.groupValues[1] }.toList()
-                } catch (e: Exception) { mapa[m.id] = emptyList() }
+                    cargados += m.id
+                } catch (e: Exception) { /* se mantiene como estado no validado */ }
             }
             fechasPorMateria = mapa
+            examenesCargados = cargados
         } catch (e: Exception) {}
         cargandoMaterias = false
     }
@@ -70,10 +77,7 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = { if (materiaActiva != null) materiaActiva = null else onVolver() },
-                    contentPadding = PaddingValues(0.dp)
-                ) { Text("←", fontSize = 20.sp, color = VerdePrimario) }
+                BotonVolver(onClick = { if (materiaActiva != null) materiaActiva = null else onVolver() })
                 Spacer(Modifier.weight(1f))
                 Text("EduFlow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
@@ -86,8 +90,8 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
             ) {
                 val materia = materiaActiva
                 if (materia == null) {
-                    Text("Biblioteca de Estudio", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
-                    Text("Selecciona una materia para ver tus consejos y tarjetas.",
+                    Text("Biblioteca de tarjetas", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
+                    Text("Selecciona una materia para consultar tus tarjetas y consejos de repaso.",
                         fontSize = 13.sp, color = TextoSecundario, lineHeight = 19.sp,
                         modifier = Modifier.padding(top = 4.dp, bottom = 22.dp))
 
@@ -105,42 +109,67 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
                             ) {
                                 Text("Sin materias registradas", fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold, color = TextoPrimario)
-                                Text("Regresa al Dashboard y agrega una materia primero.",
+                                Text("Regresa a Inicio y agrega una materia primero.",
                                     fontSize = 13.sp, color = TextoSecundario, textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(top = 6.dp, bottom = 16.dp), lineHeight = 19.sp)
                                 Button(onClick = onVolver, shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)) {
-                                    Text("Ir al Dashboard", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    Text("Ir a Inicio", color = Color.White, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
                         else -> materias.forEach { m ->
-                            val bloqueada = tieneExamenHoy(fechasPorMateria[m.id] ?: emptyList())
+                            val fechas = fechasPorMateria[m.id] ?: emptyList()
+                            val bloqueo = if (m.id !in examenesCargados) {
+                                BloqueoMateriaUI.NINGUNO
+                            } else when {
+                                tieneExamenHoy(fechas) -> BloqueoMateriaUI.EXAMEN_HOY
+                                !tieneExamenMesActual(fechas) -> BloqueoMateriaUI.SIN_EXAMEN_MENSUAL
+                                else -> BloqueoMateriaUI.NINGUNO
+                            }
                             MateriaFolderCard(
-                                nombre = m.nombre, dificultad = m.dificultad,
-                                icono = if (bloqueada) "⏵" else "▶"
-                            ) { if (!bloqueada) materiaActiva = m }
+                                nombre = m.nombre,
+                                dificultad = m.dificultad,
+                                icono = "▤",
+                                bloqueo = bloqueo
+                            ) { materiaActiva = m }
                             Spacer(Modifier.height(10.dp))
                         }
                     }
                 } else {
-                    val bloqueada = tieneExamenHoy(fechasPorMateria[materia.id] ?: emptyList())
+                    val fechas = fechasPorMateria[materia.id] ?: emptyList()
+                    val bloqueo = if (materia.id !in examenesCargados) {
+                        BloqueoMateriaUI.NINGUNO
+                    } else when {
+                        tieneExamenHoy(fechas) -> BloqueoMateriaUI.EXAMEN_HOY
+                        !tieneExamenMesActual(fechas) -> BloqueoMateriaUI.SIN_EXAMEN_MENSUAL
+                        else -> BloqueoMateriaUI.NINGUNO
+                    }
                     Text(materia.nombre, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
                     Text("Dificultad ${materia.dificultad}/10", fontSize = 12.sp, color = TextoSecundario,
                         modifier = Modifier.padding(top = 2.dp, bottom = 18.dp))
 
-                    if (bloqueada) {
+                    if (bloqueo != BloqueoMateriaUI.NINGUNO) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+                            modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) Color(0xFFFFF3E0) else Color(0xFFDDE8E0)
+                            )
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
-                                Text("Contenido bloqueado", fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold, color = Color(0xFF8B6914))
-                                Text("Hoy es el examen de ${materia.nombre}. El contenido de IA se " +
-                                    "bloquea para que repases con lo que ya preparaste.",
+                                Text(
+                                    if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) "Examen en curso" else "Fecha mensual pendiente",
+                                    fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                    color = if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY) Color(0xFF8B6914) else VerdePrimario
+                                )
+                                Text(
+                                    if (bloqueo == BloqueoMateriaUI.EXAMEN_HOY)
+                                        "Hoy es el examen de ${materia.nombre}. Las tarjetas permanecen bloqueadas durante este día."
+                                    else
+                                        "Registra una fecha de evaluación para el mes actual desde Inicio. Así EduFlow podrá programar tus recordatorios de estudio.",
                                     fontSize = 13.sp, color = TextoSecundario,
-                                    modifier = Modifier.padding(top = 6.dp), lineHeight = 19.sp)
+                                    modifier = Modifier.padding(top = 6.dp), lineHeight = 19.sp
+                                )
                             }
                         }
                     } else {
@@ -160,10 +189,10 @@ fun StudyCastView(onVolver: () -> Unit, onVerAudios: () -> Unit, onVerPeers: () 
                 modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                BottomNavItem(label = "Dashboard", selected = false, symbol = "⊞", onClick = onVolver)
-                BottomNavItem(label = "StudyCast", selected = true, symbol = "▶")
-                BottomNavItem(label = "Audio", selected = false, symbol = "♪", onClick = onVerAudios)
-                BottomNavItem(label = "Peers", selected = false, symbol = "⊙", onClick = onVerPeers)
+                BottomNavItem("Inicio", false, NavIcono.INICIO, onVolver)
+                BottomNavItem("Tarjetas", true, NavIcono.TARJETAS)
+                BottomNavItem("Audios", false, NavIcono.AUDIOS, onVerAudios)
+                BottomNavItem("Comunidad", false, NavIcono.COMUNIDAD, onVerPeers)
             }
         }
     }

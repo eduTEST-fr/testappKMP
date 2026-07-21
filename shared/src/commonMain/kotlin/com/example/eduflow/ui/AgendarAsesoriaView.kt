@@ -92,9 +92,7 @@ fun AgendarAsesoriaView(asesorId: Int, onVolver: () -> Unit, onSolicitudEnviada:
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onVolver)
                 Spacer(Modifier.weight(1f))
                 Text("Agendar Asesoría", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)

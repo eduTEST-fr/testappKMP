@@ -13,7 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.eduflow.config.ApiConfig
+import com.example.eduflow.navigation.PlatformBackHandler
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -66,6 +68,10 @@ fun TarjetasBibliotecaView(materia: MateriaUI, token: String) {
     var mostrarNueva by remember { mutableStateOf(false) }
     var generando   by remember { mutableStateOf(false) }
     var errorMsg    by remember { mutableStateOf("") }
+
+    PlatformBackHandler(enabled = temaActivo != null || mostrarNueva) {
+        if (mostrarNueva) mostrarNueva = false else temaActivo = null
+    }
 
     suspend fun recargar() {
         cargando = true
@@ -231,10 +237,9 @@ private fun SubcarpetaTarjetasDetalle(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                Text("←  ", fontSize = 15.sp, color = VerdePrimario)
-                Text("Subcarpetas", fontSize = 13.sp, color = VerdePrimario, fontWeight = FontWeight.SemiBold)
-            }
+            BotonVolver(onClick = onVolver)
+            Spacer(Modifier.width(8.dp))
+            Text("Subcarpetas", fontSize = 13.sp, color = VerdePrimario, fontWeight = FontWeight.SemiBold)
         }
         Text(subcarpeta.tema, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextoPrimario)
         Text("${subcarpeta.tarjetas.size} tarjeta${if (subcarpeta.tarjetas.size != 1) "s" else ""} · ${materia.nombre}",
@@ -279,79 +284,107 @@ fun NuevaSubcarpetaDialog(
     onGuardar: (String, String) -> Unit,
     onCerrar: () -> Unit
 ) {
-    var tema  by remember { mutableStateOf("") }
+    var tema by remember { mutableStateOf("") }
     var texto by remember { mutableStateOf("") }
     var validacion by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
-            .clickable(enabled = !generando) { onCerrar() },
-        contentAlignment = Alignment.Center
-    ) {
+    Dialog(onDismissRequest = { if (!generando) onCerrar() }) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(24.dp).clickable(enabled = false) {},
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(max = 690.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text("Nueva subcarpeta de tarjetas", fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold, color = TextoPrimario)
-                Text("La IA genera las tarjetas a partir de tus apuntes",
-                    fontSize = 12.sp, color = TextoSecundario,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 18.dp))
+            Column(Modifier.padding(23.dp).verticalScroll(rememberScrollState())) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        color = Color(0xFFDDE8E0)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("▤", fontSize = 21.sp, color = VerdePrimario, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Nuevo conjunto de tarjetas", fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold, color = TextoPrimario)
+                        Text("Convierte tus apuntes en un repaso organizado",
+                            fontSize = 12.sp, color = TextoSecundario)
+                    }
+                }
 
-                CampoTexto("Nombre del tema", tema, "Ej: Matrices") { tema = it; validacion = "" }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(18.dp))
+                CampoTexto("Nombre del tema", tema, "Ej. Matrices y determinantes") {
+                    tema = it.take(150)
+                    validacion = ""
+                }
+                Spacer(Modifier.height(12.dp))
                 Text("Apuntes o contenido", fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold, color = TextoPrimario,
-                    modifier = Modifier.padding(bottom = 8.dp))
+                    modifier = Modifier.padding(bottom = 7.dp))
                 OutlinedTextField(
-                    value = texto, onValueChange = { texto = it; validacion = "" },
-                    modifier = Modifier.fillMaxWidth().height(110.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    placeholder = { Text("Pega aquí tus notas o describe el tema...",
-                        color = Color(0xFFBBBBBB), fontSize = 13.sp) },
+                    value = texto,
+                    onValueChange = { texto = it.take(7000); validacion = "" },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 125.dp, max = 210.dp),
+                    minLines = 5,
+                    maxLines = 9,
+                    shape = RoundedCornerShape(14.dp),
+                    placeholder = { Text("Pega tus notas o describe con claridad lo que deseas estudiar…",
+                        color = Color(0xFFAAAAAA), fontSize = 13.sp) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = VerdePrimario,
-                        unfocusedBorderColor = Color(0xFFE0E0E0)
+                        unfocusedBorderColor = Color(0xFFE1E1DC),
+                        focusedContainerColor = Color(0xFFFCFCFA),
+                        unfocusedContainerColor = Color(0xFFFCFCFA)
                     )
                 )
 
-                val mensajeError = if (validacion.isNotEmpty()) validacion else errorMsg
-                if (mensajeError.isNotEmpty())
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF4F6F1),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                ) {
+                    Text(
+                        "La IA separará conceptos y respuestas; después podrás estudiar el conjunto como tarjetas individuales.",
+                        fontSize = 11.sp, color = TextoSecundario, lineHeight = 17.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                val mensajeError = validacion.ifBlank { errorMsg }
+                if (mensajeError.isNotBlank()) {
                     Text(mensajeError, color = Color(0xFFB00020), fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp))
+                        modifier = Modifier.padding(top = 9.dp))
+                }
 
                 Spacer(Modifier.height(18.dp))
-
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
                         onClick = onCerrar,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
                         enabled = !generando,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = VerdePrimario),
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, VerdePrimario)
-                    ) { Text("Cancelar", fontWeight = FontWeight.SemiBold) }
-
+                    ) { Text("Cancelar", color = VerdePrimario, fontWeight = FontWeight.SemiBold) }
                     Button(
                         onClick = {
                             when {
-                                tema.isBlank()  -> validacion = "Escribe el nombre del tema"
-                                texto.isBlank() -> validacion = "Agrega tus apuntes o contenido"
+                                tema.isBlank() -> validacion = "Escribe el nombre del tema."
+                                texto.isBlank() -> validacion = "Agrega tus apuntes o contenido."
                                 else -> onGuardar(tema.trim(), texto.trim())
                             }
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
                         enabled = !generando,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = VerdePrimario)
                     ) {
-                        if (generando)
-                            CircularProgressIndicator(color = Color.White,
-                                modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        else
+                        if (generando) {
+                            CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
                             Text("Generar", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

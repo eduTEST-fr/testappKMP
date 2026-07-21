@@ -20,7 +20,12 @@ data class LoginRequest(
 
 // --- EP6: Materias y exámenes ---
 @Serializable
-data class MateriaRequest(val nombre: String, val dificultad: Int)
+data class MateriaRequest(
+    val nombre: String,
+    val dificultad: Int,
+    val examenNombre: String? = null,
+    val examenFecha: String? = null
+)
 
 @Serializable
 data class MateriaDto(val id: Int, val nombre: String, val dificultad: Int)
@@ -131,7 +136,8 @@ data class AutorDto(
     val nombre: String,
     val carrera: String = "",
     val cuatrimestre: Int = 1,
-    val rol: String = "ALUMNO"
+    val rol: String = "ALUMNO",
+    val avatarId: String = "student_buho"
 )
 
 @Serializable

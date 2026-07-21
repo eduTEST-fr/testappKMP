@@ -28,7 +28,7 @@ private data class PerfilAsesorApiDto(
     val sobreMi: String = "",
     val materiasDestaca: String = "",
     val rol: String = "ASESOR",
-    val avatarId: String = "avatar_1",
+    val avatarId: String = "student_buho",
     val grado: String = "",
     val especialidad: String = "",
     val permiteAsesoria: Boolean = false
@@ -81,9 +81,7 @@ fun PerfilAsesorView(asesorId: Int, onVolver: () -> Unit, onAgendar: (Int) -> Un
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onVolver)
                 Spacer(Modifier.weight(1f))
                 Text("Perfil del Asesor", fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, color = VerdePrimario)

@@ -29,6 +29,13 @@ object PerfilStorage {
     fun obtenerBio(): String =
         settings.getString("perfil_bio", "")
 
+    fun guardarAvatar(avatarId: String) {
+        settings.putString("perfil_avatar", avatarId)
+    }
+
+    fun obtenerAvatar(): String =
+        settings.getString("perfil_avatar", "student_buho")
+
     fun guardarMateriasDestacadas(materias: List<String>) {
         settings.putString("perfil_materias", materias.joinToString(SEPARADOR))
     }

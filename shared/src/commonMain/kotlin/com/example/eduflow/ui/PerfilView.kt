@@ -31,7 +31,7 @@ private data class PerfilApiDto(
     val sobreMi: String = "",
     val materiasDestaca: String = "",
     val rol: String = "ALUMNO",
-    val avatarId: String = "avatar_1",
+    val avatarId: String = "student_buho",
     val grado: String = "",
     val especialidad: String = "",
     val permiteAsesoria: Boolean = false
@@ -79,7 +79,8 @@ fun PerfilView(onVolver: () -> Unit) {
     var cuatrimestre    by remember { mutableStateOf(PerfilStorage.obtenerCuatrimestre()) }
     var bio              by remember { mutableStateOf(PerfilStorage.obtenerBio()) }
     var materias         by remember { mutableStateOf(PerfilStorage.obtenerMateriasDestacadas()) }
-    var avatarId          by remember { mutableStateOf("avatar_1") }
+    var avatarId          by remember { mutableStateOf(PerfilStorage.obtenerAvatar()) }
+    var mostrarSelectorAvatar by remember { mutableStateOf(false) }
     var rol                by remember { mutableStateOf("ALUMNO") }
     var grado                by remember { mutableStateOf("") }
     var especialidad          by remember { mutableStateOf("") }
@@ -113,9 +114,10 @@ fun PerfilView(onVolver: () -> Unit) {
             cuatrimestre = dto.cuatrimestre.toString()
             bio = dto.sobreMi
             materias = dto.materiasDestaca.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            avatarId = dto.avatarId
             rol = dto.rol
-            grado = dto.grado
+            grado = dto.grado.ifBlank { "LICENCIATURA" }
+            avatarId = if (dto.rol == "ASESOR") avatarAsesorPorGrado(grado) else dto.avatarId
+            PerfilStorage.guardarAvatar(avatarId)
             especialidad = dto.especialidad
             permiteAsesoria = dto.permiteAsesoria
             if (dto.rol == "ASESOR") cargarDisponibilidad()
@@ -125,6 +127,14 @@ fun PerfilView(onVolver: () -> Unit) {
 
     LaunchedEffect(Unit) { cargarPerfil() }
 
+    if (mostrarSelectorAvatar) {
+        SelectorAvatarDialog(
+            avatarSeleccionado = avatarId,
+            onSeleccionar = { avatarId = it },
+            onCerrar = { mostrarSelectorAvatar = false }
+        )
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(Beige).windowInsetsPadding(WindowInsets.systemBars)
     ) {
@@ -133,9 +143,7 @@ fun PerfilView(onVolver: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onVolver, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 20.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onVolver)
                 Spacer(Modifier.weight(1f))
                 Text("Mi Perfil", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)
                 Spacer(Modifier.weight(1f))
@@ -156,14 +164,29 @@ fun PerfilView(onVolver: () -> Unit) {
             }
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                Box(modifier = Modifier.offset(y = (-44).dp)) {
+                Box(
+                    modifier = Modifier.offset(y = (-44).dp)
+                        .clickable(enabled = editando && rol == "ALUMNO") { mostrarSelectorAvatar = true }
+                ) {
                     Box(
                         modifier = Modifier.size(88.dp)
                             .background(Color.White, shape = androidx.compose.foundation.shape.CircleShape)
                             .padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        AvatarIcono(avatarId = avatarId, sizeDp = 80)
+                        AvatarIcono(avatarId = if (rol == "ASESOR") avatarAsesorPorGrado(grado) else avatarId, sizeDp = 80)
+                    }
+                    if (editando && rol == "ALUMNO") {
+                        Surface(
+                            modifier = Modifier.align(Alignment.BottomEnd).size(27.dp),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = VerdePrimario,
+                            border = BorderStroke(2.dp, Color.White)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("✎", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
 
@@ -182,10 +205,13 @@ fun PerfilView(onVolver: () -> Unit) {
 
                     if (editando) {
                         Spacer(Modifier.height(12.dp))
-                        Text("Elige tu icono de perfil", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            color = TextoPrimario, modifier = Modifier.padding(bottom = 8.dp))
-                        SelectorAvatar(avatarSeleccionado = avatarId, onSeleccionar = { avatarId = it })
-                        Spacer(Modifier.height(14.dp))
+                        if (rol == "ALUMNO") {
+                            Text("Toca tu avatar para cambiarlo", fontSize = 12.sp,
+                                color = TextoSecundario, modifier = Modifier.padding(bottom = 12.dp))
+                        } else {
+                            Text("El avatar del asesor se asigna según su grado académico.", fontSize = 12.sp,
+                                color = TextoSecundario, modifier = Modifier.padding(bottom = 12.dp))
+                        }
                         SelectorCarrera(carrera) { carrera = it }
                         Spacer(Modifier.height(8.dp))
                         SelectorCuatrimestre(cuatrimestre.toIntOrNull()?.coerceIn(1, 10) ?: 1) {
@@ -193,7 +219,10 @@ fun PerfilView(onVolver: () -> Unit) {
                         }
                         if (rol == "ASESOR") {
                             Spacer(Modifier.height(8.dp))
-                            CampoTexto("Grado académico", grado, "Ej: Licenciatura") { grado = it }
+                            SelectorGradoAcademico(grado) {
+                                grado = it
+                                avatarId = avatarAsesorPorGrado(it)
+                            }
                             Spacer(Modifier.height(8.dp))
                             CampoTexto("Especialidad", especialidad, "Ej: Cálculo y Álgebra") { especialidad = it }
                             Spacer(Modifier.height(10.dp))
@@ -294,7 +323,7 @@ fun PerfilView(onVolver: () -> Unit) {
                                 guardando = true; errorMsg = ""
                                 scope.launch {
                                     try {
-                                        client.put("${ApiConfig.BASE_URL}/peers/perfil") {
+                                        val respuestaPerfil = client.put("${ApiConfig.BASE_URL}/peers/perfil") {
                                             header("Authorization", "Bearer $token")
                                             contentType(ContentType.Application.Json)
                                             setBody(
@@ -310,21 +339,28 @@ fun PerfilView(onVolver: () -> Unit) {
                                                 else "}"
                                             )
                                         }
+                                        if (!respuestaPerfil.status.isSuccess()) {
+                                            throw IllegalStateException("El servidor rechazó los cambios del perfil")
+                                        }
                                         if (rol == "ASESOR") {
                                             val horariosJson = disponibilidad.filter { it.activo }.joinToString(",") {
                                                 "{\"diaSemana\":${it.dia}," +
                                                 "\"horaInicio\":\"${escaparJson(it.horaInicio)}\"," +
                                                 "\"horaFin\":\"${escaparJson(it.horaFin)}\"}"
                                             }
-                                            client.put("${ApiConfig.BASE_URL}/asesorias/disponibilidad") {
+                                            val respuestaDisponibilidad = client.put("${ApiConfig.BASE_URL}/asesorias/disponibilidad") {
                                                 header("Authorization", "Bearer $token")
                                                 contentType(ContentType.Application.Json)
                                                 setBody("{\"horarios\":[$horariosJson]}")
+                                            }
+                                            if (!respuestaDisponibilidad.status.isSuccess()) {
+                                                throw IllegalStateException("No se pudo guardar la disponibilidad")
                                             }
                                         }
                                         // Respaldo local para que el perfil cargue rapido offline
                                         PerfilStorage.guardarPerfil(carrera.trim(), cuatrimestre.trim(), "", bio.trim())
                                         PerfilStorage.guardarMateriasDestacadas(materias)
+                                        PerfilStorage.guardarAvatar(if (rol == "ASESOR") avatarAsesorPorGrado(grado) else avatarId)
                                         editando = false
                                     } catch (e: Exception) {
                                         errorMsg = "No se pudo guardar. Revisa tu conexión."

@@ -50,10 +50,7 @@ fun RegisterView(onRegistroExitoso: () -> Unit, onVolver: () -> Unit) {
 
             Spacer(Modifier.height(48.dp))
 
-            Box(modifier = Modifier.size(64.dp).clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFFDDE8E0)), contentAlignment = Alignment.Center) {
-                Text("SF", fontSize = 22.sp, fontWeight = FontWeight.Black, color = VerdePrimario)
-            }
+            EduFlowMark(modifier = Modifier.size(68.dp))
 
             Spacer(Modifier.height(12.dp))
             Text("EduFlow", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = VerdePrimario)

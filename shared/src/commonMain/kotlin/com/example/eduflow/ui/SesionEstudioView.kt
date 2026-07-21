@@ -270,11 +270,9 @@ private fun StudyTopBar(title: String, backEnabled: Boolean, onBack: () -> Unit)
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 44.dp, height = 40.dp), contentAlignment = Alignment.Center) {
             if (backEnabled) {
-                TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
-                    Text("←", fontSize = 22.sp, color = VerdePrimario)
-                }
+                BotonVolver(onClick = onBack)
             }
         }
         Text(
@@ -318,7 +316,7 @@ private fun SeleccionMateriaStep(
                 CircularProgressIndicator(color = VerdePrimario)
             }
         } else if (materias.isEmpty()) {
-            EmptyStudyCard("Primero agrega una materia desde el Dashboard.")
+            EmptyStudyCard("Primero agrega una materia desde Inicio.")
         } else {
             materias.forEach { item ->
                 val selected = seleccionada?.id == item.id
@@ -681,7 +679,7 @@ private fun ResumenSesionStep(
             modifier = Modifier.fillMaxWidth().height(52.dp).padding(top = 8.dp),
             shape = RoundedCornerShape(15.dp),
             border = BorderStroke(1.dp, VerdePrimario)
-        ) { Text("Volver al Dashboard", color = VerdePrimario) }
+        ) { Text("Volver a Inicio", color = VerdePrimario) }
     }
 }
 

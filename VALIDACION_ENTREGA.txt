@@ -1,21 +1,36 @@
-EDUFLOW — VALIDACIÓN DE ENTREGA
+EDUFLOW — VALIDACIÓN DE ENTREGA FINAL
 
-Versión base: EduFlow final con notificaciones y sensor de proximidad.
-URL configurada: https://testappkmp-production-e13d.up.railway.app
+Base utilizada:
+EduFlow final con notificaciones, sensor de proximidad, portadas Canvas y reproductor de audio.
+
+API configurada:
+https://testappkmp-production-e13d.up.railway.app
 
 Cambios incluidos:
-- Portadas Canvas mejoradas y vista previa al crear materias.
-- Reproductor Android restaurado con reproducir/pausar, -10 s, +10 s, progreso y duración.
-- Descarga autenticada del MP3 a la caché interna.
-- Un solo episodio activo a la vez y marcado automático como escuchado.
-- Validaciones de propiedad/JWT para podcasts y validación de materias.
+- Examen obligatorio al crear una materia y revisión mensual posterior.
+- Bloqueo de tarjetas y audios sin examen mensual o durante el día del examen.
+- Validación equivalente en interfaz y backend, incluido el archivo de audio.
+- Recordatorios por dificultad y cercanía del examen.
+- Selectores para dificultad, tipo/fecha de examen y grado académico.
+- Logo vectorial propio de EduFlow.
+- Avatares Canvas de animales para alumnos y avatar por grado para asesores.
+- Uso del avatar real en encabezados, menú, perfil y Comunidad.
+- Panel de asesor ampliado sin acceso a materiales privados de alumnos.
+- Navegación compatible con el gesto Atrás de Android.
+- Barra inferior completamente en español.
+- Diálogos mejorados para crear tarjetas y audios.
+- Fecha del backend ajustada a America/Mexico_City, configurable con APP_TIME_ZONE.
+- Protección frente a falsos avisos de examen cuando falla temporalmente la red.
 
-Revisión realizada:
-- Comparación contra la versión final anterior.
-- Verificación de llaves/paréntesis en archivos Kotlin modificados.
-- Revisión de referencias expect/actual para Android, JS y Wasm.
-- Verificación de la nueva URL en ApiConfig y ausencia de URLs antiguas.
-- Integridad del ZIP comprobada con unzip -t.
+Revisión estática realizada:
+- Archivos JSON y XML analizados correctamente.
+- Kotlin revisado con kotlinc para detectar errores sintácticos; no se encontraron errores de parser.
+- Contratos expect/actual presentes para Android, JS y Wasm.
+- URL de ApiConfig verificada.
+- Permisos INTERNET, POST_NOTIFICATIONS y característica TYPE_PROXIMITY verificados.
+- Rutas de tarjetas y podcasts verificadas contra MaterialAccessPolicy.
+- Ausencia de etiquetas visibles Dashboard, Peers y SF comprobada.
+- Navegación inferior en español comprobada.
 
 Limitación del entorno:
-La compilación Gradle completa no pudo ejecutarse porque este entorno no tiene acceso a services.gradle.org para descargar Gradle 9.1.0. Debe sincronizarse en Android Studio y desplegarse nuevamente el backend en Railway.
+No fue posible ejecutar la compilación Gradle completa porque Gradle 9.1.0 debe descargarse desde services.gradle.org y este entorno bloquea la descarga del archivo ZIP. La versión debe sincronizarse en Android Studio, desplegar nuevamente el backend en Railway y probarse en un dispositivo Android.

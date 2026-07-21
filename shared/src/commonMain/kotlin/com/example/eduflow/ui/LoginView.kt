@@ -51,22 +51,11 @@ fun LoginView(onLoginExitoso: () -> Unit, onIrARegistro: () -> Unit) {
         ) {
             Spacer(Modifier.height(64.dp))
 
-            Box(
+            EduFlowMark(
                 modifier = Modifier.size(80.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier.size(80.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFFDDE8E0)
-                ) {}
-                Text(
-                    "SF",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                    color = VerdePrimario
-                )
-            }
+                color = VerdePrimario,
+                background = Color(0xFFDDE8E0)
+            )
 
             Spacer(Modifier.height(16.dp))
 
